@@ -1,0 +1,8 @@
+schema_version: "1"
+scope: user
+proxies:
+  - id: edge
+    engine: traefik
+    endpoint: http://127.0.0.1:8080
+    # For protected APIs, configure your own absolute authorization-file path.
+    # auth_file: /absolute/path/proxy-authorization

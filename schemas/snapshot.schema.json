@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samishal1998/steward/schemas/snapshot.schema.json",
+  "title": "Steward native-response fixture snapshot v1",
+  "type":"object", "additionalProperties":false,
+  "required":["schema_version", "binding", "engine", "captured_at", "responses"],
+  "properties": {
+    "schema_version":{"const":"1"},
+    "binding":{"type":"string", "pattern":"^[A-Za-z0-9_-]{1,64}$"},
+    "engine":{"enum":["caddy", "traefik"]},
+    "captured_at":{"type":"string", "minLength":1, "maxLength":128},
+    "responses":{"type":"object", "additionalProperties":true}
+  },
+  "allOf": [
+    {"if":{"properties":{"engine":{"const":"traefik"}}}, "then":{"properties":{"responses":{"required":["/api/http/routers", "/api/entrypoints", "/api/http/services"]}}}},
+    {"if":{"properties":{"engine":{"const":"caddy"}}}, "then":{"properties":{"responses":{"required":["/config/"]}}}}
+  ],
+  "$comment":"Response values preserve native JSON. Rust validates array/object shapes, record/byte budgets and binding/engine match. Saved snapshots are never runtime-confirmed, regardless of capture time."
+}

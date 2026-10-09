@@ -1,0 +1,12 @@
+schema_version: "1"
+scope: user
+proxies:
+  - id: edge
+    engine: traefik
+    endpoint: http://127.0.0.1:8080
+    # This profile reads the synthetic file and makes no network requests.
+    snapshot_file: ../fixtures/traefik/snapshot.json
+  - id: caddy-edge
+    engine: caddy
+    endpoint: http://127.0.0.1:2019
+    snapshot_file: ../fixtures/caddy/snapshot.json

@@ -1,0 +1,14 @@
+flowchart LR
+    Person[User or coding agent] --> Steward[Steward CLI or TUI]
+    Steward --> Native[systemd or launchd]
+    Steward --> Input[Owned proxy configuration input]
+    Input --> Proxy[Caddy controller or Traefik]
+    Native --> Process[Application process]
+    Proxy --> Process
+    Proxy -. existing read-only discovery .-> Discover[AppTrail providers]
+    Docker[Docker metadata] -. existing read-only discovery .-> Discover
+    Steward -. optional versioned export .-> Discover
+    Discover --> Registry[AppTrail observations and registry]
+    Registry --> Dashboard[AppTrail dashboard]
+    Dashboard -. optional authorized backend action .-> Bridge[AppTrail-side command adapter]
+    Bridge -. plan and approved apply .-> Steward

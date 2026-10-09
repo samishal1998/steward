@@ -1,0 +1,24 @@
+sequenceDiagram
+    actor U as User or agent
+    participant S as Steward composition
+    participant M as Native service manager
+    participant A as Application
+    participant P as Proxy adapter
+    U->>S: Up service with route
+    S->>S: Preflight both sides, journal one operation
+    S->>M: Install or update owned service definition
+    S->>M: Start service
+    M->>A: Run foreground executable
+    S->>A: Bounded readiness check
+    alt Application ready
+        S->>P: Publish route and verify activation
+        alt Route activated
+            S-->>U: Service running and route applied
+        else Route failed
+            S->>P: Revert owned route input if safe
+            S-->>U: Partial result; service retained by default
+        end
+    else Not ready
+        S-->>U: No route published; service failure details
+    end
+    Note over M,A: Application remains supervised after Steward exits

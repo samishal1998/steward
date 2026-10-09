@@ -1,0 +1,12 @@
+schema_version: "1"
+scope: user
+routes:
+  - id: notes
+    proxy: edge
+    hostname: notes.example.test
+    enabled: true
+    upstream:
+      url: http://127.0.0.1:3000
+    tls:
+      mode: http
+services: []

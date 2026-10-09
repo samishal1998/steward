@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "binding": "edge",
+  "engine": "traefik",
+  "captured_at": "2026-10-09T00:00:00Z",
+  "responses": {
+    "/api/http/routers": [
+      {"name":"photos@file","provider":"file","rule":"Host(`photos.example.test`) || Host(`pictures.example.test`)","service":"photos","entryPoints":["websecure"],"using":["websecure"],"tls":{"certResolver":"test"},"status":"enabled","priority":30},
+      {"name":"old@docker","provider":"docker","rule":"Host(`old.example.test`)","service":"old@docker","using":["web"],"status":"disabled"}
+    ],
+    "/api/entrypoints": [
+      {"name":"web","address":":80"},
+      {"name":"websecure","address":":443/tcp"}
+    ],
+    "/api/http/services": [
+      {"name":"photos@file","status":"enabled","loadBalancer":{"servers":[{"url":"http://photos:3000"}]},"serverStatus":{"http://photos:3000":"UP"}},
+      {"name":"old@docker","status":"disabled","loadBalancer":{"servers":[{"url":"http://old:8080"}]}}
+    ]
+  }
+}

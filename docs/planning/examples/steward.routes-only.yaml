@@ -1,0 +1,15 @@
+# PROPOSED STEWARD INPUT — not a currently implemented vendor/CLI format.
+# Linux-oriented system-scope example; requires an approved native proxy binding
+# named edge in the same scope. No proxy installation or DNS change is implied.
+schema_version: "1"
+scope: system
+routes:
+  - id: api-public
+    proxy: edge
+    hostname: api.example.com
+    enabled: true
+    upstream:
+      url: http://127.0.0.1:3000
+    tls:
+      mode: public
+services: []

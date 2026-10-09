@@ -1,0 +1,6 @@
+schema_version: "1"
+scope: user
+proxies:
+  - id: caddy-edge
+    engine: caddy
+    endpoint: http://127.0.0.1:2019

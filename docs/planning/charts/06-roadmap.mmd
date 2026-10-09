@@ -1,0 +1,15 @@
+flowchart LR
+    M0[M0 AppTrail audit and repository decision] --> M1[M1 Compatibility spikes and contracts]
+    M1 --> M2[M2 Core, CLI, state and operation engine]
+    M2 --> M3[M3 Inventory and approved bindings]
+    M3 --> M4[M4 Caddy route adapters]
+    M3 --> M5[M5 Traefik route adapter]
+    M4 --> M6[M6 Explicit bootstrap and installers]
+    M5 --> M6
+    M6 --> M7[M7 TUI and proxy release hardening]
+    M7 --> R1[Proxy-management release]
+    R1 --> M8[M8 Native services]
+    M8 --> M9[M9 Combined service and route operations]
+    M9 --> R2[Services and composition release]
+    R2 --> M10[M10 Optional AppTrail integration]
+    R2 --> Later[Later adapters and platforms]

@@ -1,0 +1,26 @@
+sequenceDiagram
+    actor U as User or agent
+    participant S as Steward
+    participant J as Journal and files
+    participant P as Proxy adapter
+    participant R as Running proxy
+    U->>S: Route intent
+    S->>P: Inspect binding, source, conflicts, capabilities
+    P-->>S: Evidence and current fingerprints
+    S-->>U: Plan with effects and verification
+    U->>S: Approve apply
+    S->>J: Lock, recheck inputs, persist operation
+    S->>P: Compile and validate candidate
+    P-->>S: Candidate and validation result
+    S->>J: Back up and atomically install owned change
+    S->>P: Activate through authorized controller
+    P->>R: Reload or allow provider refresh
+    S->>P: Observe effective route and bounded probe
+    alt Observed activation
+        S->>J: Commit desired revision and receipt
+        S-->>U: Applied, with separate health and TLS status
+    else Failure or uncertain activation
+        S->>J: Record partial state
+        S->>P: Compensate only if fingerprints still match
+        S-->>U: Failed, compensated, or recovery required
+    end

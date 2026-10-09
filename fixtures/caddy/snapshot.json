@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "binding": "caddy-edge",
+  "engine": "caddy",
+  "captured_at": "2026-10-09T00:00:00Z",
+  "responses": {
+    "/config/": {
+      "apps": {
+        "http": {
+          "servers": {
+            "edge": {
+              "listen":[":443"],
+              "tls_connection_policies":[{}],
+              "routes":[
+                {"@id":"manual-photos","match":[{"host":["photos.example.test"]}],"handle":[{"handler":"subroute","routes":[{"match":[{"path":["/library/*"]}],"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"photos:3000"}]}]}]}]},
+                {"@id":"external-special","match":[{"host":["special.example.test"],"expression":"{http.request.method} == 'POST'"}],"handle":[{"handler":"unfamiliar_module","setting":"synthetic"}]}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

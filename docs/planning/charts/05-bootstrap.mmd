@@ -1,0 +1,12 @@
+flowchart TD
+    Inspect[Inspect host and selected capability] --> Present{Usable proxy binding exists?}
+    Present -->|Yes| PlanRoutes[Ordinary route plan]
+    Present -->|No or not integrated| Setup[Explicit setup request]
+    Setup --> Select[Choose engine, runtime, scope, Docker and TLS policy]
+    Select --> Preview[Review files, privileges, artifacts and disruption]
+    Preview --> Approved{Approved?}
+    Approved -->|No| Exit[Exit without mutation]
+    Approved -->|Yes| Install[Verified install or authorized integration]
+    Install --> Verify[Validate listeners, providers and persistence]
+    Verify --> Ready[Store approved binding]
+    Verify --> Failed[Recovery receipt on failure]

@@ -1,0 +1,10 @@
+erDiagram
+    HOST ||--o{ PROXY_BINDING : contains
+    HOST ||--o{ SERVICE : contains
+    PROXY_BINDING ||--o{ ROUTE : serves
+    SERVICE ||--o{ ENDPOINT : declares
+    ENDPOINT o|--o{ ROUTE : optionally_targets
+    OPERATION ||--o{ ACTION : records
+    APPTRAIL_APP o|--o{ CORRELATION : optionally_maps
+    SERVICE o|--o{ CORRELATION : may_reference
+    ROUTE o|--o{ CORRELATION : may_reference

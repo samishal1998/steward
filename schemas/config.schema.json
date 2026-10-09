@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samishal1998/steward/schemas/config.schema.json",
+  "title": "Steward read-only binding profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scope", "proxies"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "scope": {"enum": ["user", "system"]},
+    "proxies": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "engine", "endpoint"],
+        "properties": {
+          "id": {"type":"string", "pattern":"^[A-Za-z0-9_-]{1,64}$"},
+          "engine": {"enum":["caddy", "traefik"]},
+          "endpoint": {"type":"string", "maxLength":2048},
+          "auth_file": {"type":["string", "null"]},
+          "snapshot_file": {"type":["string", "null"]}
+        }
+      }
+    }
+  },
+  "$comment": "Rust semantic validation additionally checks unique IDs, absolute auth/socket paths, endpoint schemes and forbidden userinfo/query/fragment. This profile does not authorize writes."
+}

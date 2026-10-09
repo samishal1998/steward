@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samishal1998/steward/schemas/routes.schema.json",
+  "title": "Steward route-only planning input v1",
+  "type":"object", "additionalProperties":false,
+  "required":["schema_version", "scope"],
+  "properties": {
+    "schema_version":{"const":"1"},
+    "scope":{"enum":["user", "system"]},
+    "services":{"type":"array", "maxItems":0},
+    "routes": {
+      "type":"array", "maxItems":256,
+      "items": {
+        "type":"object", "additionalProperties":false,
+        "required":["id", "proxy", "hostname", "enabled", "upstream", "tls"],
+        "properties": {
+          "id":{"type":"string", "pattern":"^[A-Za-z0-9_-]{1,64}$"},
+          "proxy":{"type":"string", "pattern":"^[A-Za-z0-9_-]{1,64}$"},
+          "hostname":{"type":"string", "minLength":1, "maxLength":254},
+          "enabled":{"type":"boolean"},
+          "upstream":{"type":"object", "additionalProperties":false, "required":["url"], "properties":{"url":{"type":"string"}}},
+          "tls":{"type":"object", "additionalProperties":false, "required":["mode"], "properties":{"mode":{"enum":["public", "internal", "http"]}}}
+        }
+      }
+    }
+  },
+  "$comment":"Complete specs for explicitly listed IDs only; absent/empty collections do not prune. Native services are unavailable in this read-only slice. Rust validates exact DNS hostnames, unique IDs, scope/binding relationships, and origin-only HTTP(S) upstreams."
+}

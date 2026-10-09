@@ -1,0 +1,43 @@
+# PROPOSED STEWARD INPUT — a single same-scope service-and-route operation.
+# The service account, executable, app, and approved native edge proxy must exist.
+# This example assumes the application actually honors HOST and PORT and exposes
+# GET /healthz. Steward does not add those behaviors to application code.
+schema_version: "1"
+scope: system
+services:
+  - id: api
+    manager: auto
+    run_as:
+      user: app-api
+    command:
+      - /usr/bin/node
+      - /srv/api/server.js
+    working_directory: /srv/api
+    state: running
+    startup: boot
+    restart: on_failure
+    environment:
+      HOST: 127.0.0.1
+      PORT: "3000"
+      NODE_ENV: production
+    endpoints:
+      - name: http
+        scheme: http
+        host: 127.0.0.1
+        port: 3000
+        readiness:
+          path: /healthz
+          expected_status: [200]
+          timeout: 15s
+routes:
+  - id: api-public
+    proxy: edge
+    hostname: api.example.com
+    enabled: true
+    upstream:
+      service: api
+      endpoint: http
+    tls:
+      mode: public
+operation:
+  on_failure: preserve_service

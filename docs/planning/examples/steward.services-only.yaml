@@ -1,0 +1,19 @@
+# PROPOSED STEWARD INPUT — no proxy, Docker, or AppTrail dependency.
+# Replace the executable/workdir with real absolute paths for the target host.
+schema_version: "1"
+scope: user
+services:
+  - id: worker
+    manager: auto
+    command:
+      - /usr/local/bin/example-worker
+      - --queue
+      - default
+    working_directory: /home/example/worker
+    state: running
+    startup: login
+    restart: on_failure
+    environment:
+      LOG_LEVEL: info
+    endpoints: []
+routes: []

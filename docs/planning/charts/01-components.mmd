@@ -1,0 +1,18 @@
+flowchart TB
+    Human[Human operator] --> UI[Steward CLI or TUI]
+    Agent[Coding agent] --> UI
+    UI --> Core[Application use cases and operation planner]
+    Core --> Routes[Route management]
+    Core --> Services[Native service management]
+    Core --> Setup[Explicit bootstrap and setup]
+    Core --> State[Local desired state and operation journal]
+    Routes --> Caddy[Caddy adapter]
+    Routes --> Traefik[Traefik adapter]
+    Routes -. read only .-> Docker[Docker discovery]
+    Services --> Systemd[systemd adapter]
+    Services --> Launchd[launchd adapter]
+    Setup --> Caddy
+    Setup --> Traefik
+    Setup --> Systemd
+    Setup --> Launchd
+    AppTrail[Optional AppTrail] -. future snapshot or command boundary .-> Core
