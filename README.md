@@ -9,6 +9,27 @@ inspects explicitly configured Caddy/Traefik APIs or synthetic saved responses a
 previews exact-host route intent. Writes, proxy setup/install, general native
 services, composition, and the TUI remain planned behind the documented gates.
 
+**[Website & guides](https://samishal1998.github.io/steward/)** · **[Downloads](https://github.com/samishal1998/steward/releases)**
+
+## Install the alpha
+
+Linux/macOS x86_64 or ARM64:
+
+```sh
+curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
+~/.local/bin/steward --help
+```
+
+The installer follows the latest stable release, or explicitly falls back to the
+documented read-only alpha `v0.1.0-alpha.1` when none exists. It verifies the release
+installer, archive digest, and executable version, then places the CLI atomically
+in `~/.local/bin`. No sudo, shell edits, proxy setup, or service startup. Use
+`sh -s -- --version v0.1.0-alpha.1 --dir "$HOME/bin"` for a pin/custom destination.
+
+Release-specific installers use Bedouin-resolved platform URLs and embedded
+digests; no Bedouin/Python/Node/Rust runtime is required by the shell installer.
+See the [installation guide](https://samishal1998.github.io/steward/guides/installation/).
+
 ## Try the implemented slice
 
 Requires Rust 1.89 or newer. This repository has one Cargo package and a committed
@@ -82,6 +103,7 @@ later milestone, not an Apptrail self-installer wrapped as a general service API
 cargo fmt --check
 cargo test --locked -j 1 -- --test-threads=1
 cargo clippy --locked -j 1 --all-targets -- -D warnings
+python3 -B -m unittest discover -s scripts -p 'test_*.py'
 ```
 
 Tests use synthetic native responses and disposable local mock HTTP servers.
@@ -105,3 +127,29 @@ are excluded/deferred as specified in the plan.
 
 Licensing is pending the owner's choice. The repository is public, but no
 open-source license has been selected and this package is not published to crates.io.
+
+## Website and releases
+
+Astro Starlight lives in `site/`, built with Node.js 24:
+
+```sh
+npm ci --prefix site
+npm run dev --prefix site
+npm run build --prefix site
+```
+
+Local base path: `/steward/`. `.github/workflows/pages.yml` deploys to GitHub Pages
+on relevant `main` changes; use **Pages → Source → GitHub Actions**. The root
+channel-selector script and real fixture/example files are imported into static
+download endpoints rather than maintained as duplicate copies.
+
+`.github/workflows/release.yml` builds and executes native Linux x86_64/ARM64
+musl and macOS Intel/Apple Silicon targets for tags matching the Cargo version.
+It publishes immutable archives/digests, uses verified Bedouin 0.23.1 generation,
+validates the resolved installer table, and exercises the published installer.
+Stable releases become latest only after the installer succeeds; alpha tags stay
+prereleases. A retry checks public binary digests rather than replacing them.
+
+These releases package the current read-only alpha. Future route writes, TUI,
+proxy/bootstrap and native-service support still require their acceptance gates.
+See [release maintenance](https://samishal1998.github.io/steward/project/releases/).

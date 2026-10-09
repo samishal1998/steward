@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: steward-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    env:
+      CARGO_BUILD_JOBS: '1'
+      VERSION: ${{ github.ref_name }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy --target "$TARGET"
+      - name: Verify tag matches package
+        run: python3 -c 'import os,tomllib; p=tomllib.load(open("Cargo.toml","rb")); assert os.environ["VERSION"] == "v"+p["package"]["version"], "tag/package version mismatch"'
+      - run: cargo +1.98.0 fmt --check
+      - run: cargo +1.98.0 test --locked -- --test-threads=1
+      - run: cargo +1.98.0 clippy --locked --all-targets -- -D warnings
+      - name: Install native musl compiler
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build native release target
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+            export CC_x86_64_unknown_linux_musl=musl-gcc
+            export CC_aarch64_unknown_linux_musl=musl-gcc
+          fi
+          cargo +1.98.0 build --locked --release --target "$TARGET"
+      - name: Execute built target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(target/$TARGET/release/steward --version)" == "steward ${VERSION#v}" ]]
+          target/$TARGET/release/steward --config examples/read-only.yaml route list --json > /tmp/steward-smoke.json
+          python3 -c 'import json; r=json.load(open("/tmp/steward-smoke.json")); assert r["changed"] is False and len(r["data"]) == 4'
+      - name: Verify Linux target is statically linked
+        if: runner.os == 'Linux'
+        run: file "target/$TARGET/release/steward" | grep -E 'static(ally linked|-pie linked)'
+      - name: Package native archive
+        run: python3 -B scripts/package_release.py --version "$VERSION" --target "$TARGET"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: steward-${{ matrix.target }}
+          path: release-dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-dist
+          merge-multiple: true
+      - name: Collect verified digests
+        run: python3 -B scripts/release_checksums.py --dir release-dist --version "$VERSION"
+      - name: Publish immutable binaries before generating their installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [[ "$state" == false ]]; then
+            mkdir published-checksums
+            gh release download "$VERSION" --pattern SHA256SUMS --dir published-checksums
+            python3 -B scripts/release_checksums.py --dir release-dist --version "$VERSION" --verify published-checksums/SHA256SUMS
+          else
+            if [[ "$state" != true ]]; then
+              gh release create "$VERSION" --draft --prerelease --latest=false --verify-tag --generate-notes --title "Steward $VERSION"
+            fi
+            gh release upload "$VERSION" release-dist/*.tar.gz release-dist/*.sha256 release-dist/SHA256SUMS --clobber
+            # Bedouin resolves public URLs/digests. Stable tags are promoted only
+            # after their verified installer is uploaded and exercised.
+            gh release edit "$VERSION" --draft=false --prerelease --latest=false
+          fi
+      - name: Fetch verified Bedouin generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir release-tools
+          base=https://github.com/samishal1998/bedouin/releases/download/v0.23.1
+          curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' "$base/bedouin-x86_64-unknown-linux-musl.tar.gz" -o release-tools/bedouin.tar.gz
+          curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' "$base/SHA256SUMS" -o release-tools/SHA256SUMS
+          expected=$(awk '$2=="bedouin-x86_64-unknown-linux-musl.tar.gz" {print $1;n++} END {if(n!=1)exit 1}' release-tools/SHA256SUMS)
+          actual=$(sha256sum release-tools/bedouin.tar.gz)
+          [[ "$expected" == "${actual%% *}" ]]
+          tar -xzf release-tools/bedouin.tar.gz -C release-tools bedouin
+          [[ "$(release-tools/bedouin --version)" == "bedouin 0.23.1" ]]
+      - name: Generate and validate release-pinned installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          release-tools/bedouin install "samishal1998/steward@$VERSION" --generate --bin steward > release-tools/generated.sh
+          python3 -B scripts/prepare_installer.py --version "$VERSION" < release-tools/generated.sh > release-dist/install.sh
+          sh -n release-dist/install.sh
+          python3 -B scripts/release_checksums.py --dir release-dist --version "$VERSION"
+          gh release upload "$VERSION" release-dist/install.sh release-dist/SHA256SUMS --clobber
+      - name: Exercise the published installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination=$(mktemp -d)
+          sh install.sh --version "$VERSION" --dir "$destination"
+          [[ "$("$destination/steward" --version)" == "steward ${VERSION#v}" ]]
+          "$destination/steward" --config examples/read-only.yaml plan --file examples/routes-only.yaml --json > /tmp/steward-installed.json
+          python3 -c 'import json; r=json.load(open("/tmp/steward-installed.json")); assert r["changed"] is False and r["data"]["applicable"] is False'
+      - name: Finalize release channel
+        shell: bash
+        run: |
+          if [[ "$VERSION" == *-* ]]; then
+            gh release edit "$VERSION" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$VERSION" --draft=false --prerelease=false --latest
+          fi

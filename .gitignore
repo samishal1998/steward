@@ -1,3 +1,9 @@
 /target/
 *.log
 .DS_Store
+/release-dist/
+/site/node_modules/
+/site/dist/
+/site/.astro/
+__pycache__/
+*.pyc

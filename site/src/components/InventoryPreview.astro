@@ -1,0 +1,11 @@
+---
+---
+<figure class="inventory-preview">
+  <div class="terminal-bar"><span aria-hidden="true">● ● ●</span><span>AN INVENTORY, NOT AN ASSUMPTION</span></div>
+  <div class="terminal-command"><span aria-hidden="true">$</span> steward --config edge.yaml route list --json</div>
+  <div class="inventory-heading"><span>Native route</span><span>Source</span><span>Reported state</span></div>
+  <div class="inventory-row"><div><strong>photos@file</strong><span>photos.example.test · pictures.example.test</span></div><span>File provider</span><span class="state">Enabled</span></div>
+  <div class="inventory-row"><div><strong>old@docker</strong><span>old.example.test</span></div><span>Docker provider</span><span class="state muted">Disabled</span></div>
+  <div class="inventory-footer"><span class="read-only-badge">READ ONLY</span><code>"changed": false</code><span>Native identity stays intact.</span></div>
+  <figcaption>Illustrative native inventory fields. The CLI emits JSON; enabled routing is not a health check.</figcaption>
+</figure>

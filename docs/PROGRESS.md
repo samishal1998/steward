@@ -94,6 +94,38 @@ its own source commit and checks follow the already passing foundation run.
 
 ## Active and next work
 
+### Release packaging and public documentation
+
+The first installable distribution is `v0.1.0-alpha.1`, explicitly packaging the
+read-only foundation. `.github/workflows/release.yml` builds/executes native Linux
+x86_64/ARM64 musl and macOS Intel/Apple Silicon targets, verifies archive digests,
+uses Bedouin 0.23.1 to resolve release-pinned platform URLs/digests, validates the
+table, and stages the resulting CLI installation atomically.
+
+The root `install.sh` selects stable/pinned releases, or the documented alpha only
+when no stable release exists. It verifies the downloaded release installer
+before executing it. Source-generated and release-generated scripts use the
+same repository; no cross-product latest-release resolution is involved.
+
+Local checks: 19 Rust tests, Clippy, 9 standard-library Python installer tests,
+shell syntax, and workflow lint passed. Installer fixtures cover all platform
+rows, latest/no-stable/pinned selection, checksum rejection, wrong binary version,
+symlink destinations and interrupted input. These are synthetic tests, not native
+cross-architecture executable proof; the release matrix supplies that evidence.
+
+Astro Starlight `site/` supplies the public landing page and alpha guides, search,
+GitHub Pages deployment and source-imported installer/example downloads. Local
+browser checks passed 19 internal links, exact download contents, search, dark/
+light themes and mobile layout. `npm audit` reports no vulnerabilities after
+overriding the vulnerable transitive selector parser to patched 7.1.6+.
+**ponytail:** that override spans the upstream 6.x parser constraint; remove it
+when Expressive Code/postcss-nested resolves a patched parser normally. The actual
+site build and code-block/theme rendering are verified with the override.
+
+Publication/native package checks will be recorded by the linked release and
+Pages workflows. None of these packaging/UI checks establishes proxy writes,
+controller refresh, native-service lifecycle, or journal recovery capabilities.
+
 | Work | Status | Owner / next action |
 |---|---|---|
 | Standalone Cargo/CLI modules | Implemented and locally checked | Maintainer: keep CLI/schema/README aligned and verify CI/MSRV |
@@ -106,7 +138,8 @@ its own source commit and checks follow the already passing foundation run.
 | Native/container networking and TLS | Unknown per topology | Networking owner: proxy-context reachability/verification; do not assume local loopback on remote daemon |
 | Native Linux/macOS services | Full later milestone, not dropped | Native owner: on-target scope/lifecycle/log/KeepAlive/logout/reboot tests with non-skipped evidence |
 | Setup/install/TUI/composition | Full roadmap planned | Implementers: advance after dependencies; no required daemon/process supervisor |
-| License/attribution and release assets | Open | Maintainer: AppTrail has no root LICENSE; inspect copying rights and select Steward license only with user decision |
+| Independent release assets and docs | Workflows/scripts/site implemented and locally checked | Native release execution and live installer/Pages checks are the publication gates |
+| License/attribution | Open | Select Steward license only with user decision; package publishing to crates.io remains disabled |
 | Optional AppTrail integration | Stage 0 boundary known, live result unknown; later contracts proposed | Integration owner: use existing proxy discovery first, then explicit new versioned importer if needed |
 
 ## Required completion record for implementation work

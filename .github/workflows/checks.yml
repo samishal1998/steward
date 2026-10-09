@@ -28,6 +28,8 @@ jobs:
         run: cargo +1.98.0 test --locked -- --test-threads=1
       - name: Lint
         run: cargo +1.98.0 clippy --locked --all-targets -- -D warnings
+      - name: Installer contracts
+        run: sh -n install.sh && python3 -B -m unittest discover -s scripts -p 'test_*.py'
 
   msrv:
     runs-on: ubuntu-latest
@@ -38,3 +40,16 @@ jobs:
       - uses: actions/checkout@v7
       - run: rustup toolchain install 1.89.0 --profile minimal
       - run: cargo +1.89.0 check --locked
+
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --prefix site
+      - run: npm run build --prefix site

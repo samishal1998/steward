@@ -1,0 +1,61 @@
+---
+title: A clear view. A careful next step.
+description: Inspect Caddy and Traefik routes with a standalone Rust CLI. Understand native state before changing infrastructure.
+template: splash
+hero:
+  title: 'Your routes.<br /><span class="hero-accent">Their real story.</span>'
+  tagline: Steward brings native proxy configuration into view. Inspect what exists, understand what’s uncertain, and preview your next route without changing a thing.
+  actions:
+    - text: Install the alpha
+      link: ./guides/installation/
+      icon: download
+      variant: primary
+    - text: Take the first step
+      link: ./guides/quick-start/
+      icon: right-arrow
+      variant: secondary
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import InventoryPreview from '../../components/InventoryPreview.astro';
+
+<div className="alpha-banner"><span>READ-ONLY ALPHA</span> Available now: proxy inventory and route previews. Management, services, and TUI are on the roadmap.</div>
+
+<InventoryPreview />
+
+## Observe first. Plan with evidence.
+
+A hostname alone does not tell you who owns a route, whether it is loaded, or how it should be changed. Steward keeps native identities, reported status, and incomplete coverage visible.
+
+<CardGrid>
+  <Card title="Read what the proxy reports." icon="magnifier">
+    Inspect Caddy’s native JSON or Traefik’s routers, entrypoints, and services. Keep host aliases attached to their native router, without dashboard-style merges.
+  </Card>
+  <Card title="Keep uncertainty in view." icon="information">
+    Disabled routes, unfamiliar matchers, and partial inventories stay visible. An inaccessible API never becomes a reassuring empty list.
+  </Card>
+  <Card title="Preview a careful next step." icon="document">
+    Check exact-host route intent against observed configuration. See overlaps, fingerprints, and the missing prerequisites. The alpha does not apply changes.
+  </Card>
+  <Card title="Small tool. Clear boundaries." icon="padlock">
+    One Rust executable, no required daemon, and no Apptrail dependency. Future routes and native services remain independently useful capabilities.
+  </Card>
+</CardGrid>
+
+## Start with one command.
+
+Linux or macOS, Intel or ARM64. The installer verifies release checksums and places only the CLI in your local bin directory.
+
+```sh
+curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
+```
+
+```sh
+~/.local/bin/steward --help
+```
+
+There is no stable release yet. The current installer selects the documented read-only alpha when a stable release is unavailable. It does not enable APIs, install a proxy, or start services.
+
+<LinkCard title="Try an offline inventory." description="Use synthetic examples to see the output before connecting to your own proxy." href="./guides/quick-start/" />
+
+<div className="landing-signoff">NATIVE TOOLS. EXPLICIT OWNERSHIP. NO GUESSWORK.</div>
