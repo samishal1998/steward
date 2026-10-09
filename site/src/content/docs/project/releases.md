@@ -53,14 +53,21 @@ Linux executables are checked for static linking. Each target ships as `steward_
 The publish job verifies and downloads the pinned Bedouin 0.23.1 generator, then runs:
 
 ```sh
-bedouin install samishal1998/steward@v0.1.0-alpha.1 --generate --bin steward
+bedouin-installer samishal1998/steward@v0.1.0-alpha.1 --generate --bin steward
 ```
 
-`scripts/prepare_installer.py` validates Bedouin’s four resolved platform URLs and nonempty binary digests, then emits the release-pinned shell installer with strict verification and atomic placement. There is no second asset-guessing algorithm in shell.
+The standalone `bedouin-installer` uses Bedouin’s Forge implementation without loading a machine provisioning configuration or state. `scripts/prepare_installer.py` validates its four resolved platform URLs and nonempty binary digests, then emits the release-pinned shell installer with strict verification and atomic placement. There is no second asset-guessing algorithm in shell.
 
 Binaries/checksums must be publicly readable for generation. The workflow first publishes them as a non-latest prerelease, then attaches the verified installer, exercises it, and promotes only stable tags to the stable/latest channel. Alpha tags remain prereleases.
 
-If a publish attempt fails, rerunning can complete the installer stage. Already public binary digests must match the downloaded artifacts; immutable binaries are not overwritten. An interrupted installer publication fails before placement rather than installing an unverified script.
+If a publish attempt fails after all four native jobs succeed, run the workflow from `main` with the existing tag and original build run ID:
+
+```sh
+gh workflow run release.yml --repo samishal1998/steward --ref main \
+  -f release_tag=v0.1.0-alpha.1 -f build_run_id=BUILD_RUN_ID
+```
+
+Recovery checks that the original run built this exact tag commit and all four native jobs passed, then reuses its artifacts. Already public binary digests must match those artifacts; immutable binaries are not overwritten. The tag is not moved, and an interrupted installer publication fails before placement rather than installing an unverified script. Once Actions artifacts expire, publish a new version instead.
 
 The first Pages installer explicitly falls back to v0.1.0-alpha.1 only when no stable release exists. Maintain that documented fallback when intentionally changing the initial preview channel. Explicit `--version` selection remains available for any published tag.
 

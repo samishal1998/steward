@@ -3,16 +3,27 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to finish publishing
+        required: true
+        type: string
+      build_run_id:
+        description: Tag-triggered run with four successful native build jobs
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: steward-release-${{ github.ref }}
+  group: steward-release-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   build:
+    if: github.event_name == 'push'
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -75,19 +86,51 @@ jobs:
 
   publish:
     needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ inputs.release_tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref_name }}
+      - name: Verify tag matches package
+        run: python3 -c 'import os,tomllib; p=tomllib.load(open("Cargo.toml","rb")); assert os.environ["VERSION"] == "v"+p["package"]["version"], "tag/package version mismatch"'
+      - name: Verify reused native build evidence
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REUSE_RUN: ${{ inputs.build_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REUSE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_RUN" > /tmp/source-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_RUN/jobs?per_page=100" > /tmp/source-jobs.json
+          EXPECTED_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$VERSION" --jq .sha)
+          export EXPECTED_SHA
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('/tmp/source-run.json'))
+          assert run['event'] == 'push' and run['status'] == 'completed'
+          assert run['path'] == '.github/workflows/release.yml'
+          assert run['head_sha'] == os.environ['EXPECTED_SHA'] and run['head_branch'] == os.environ['VERSION']
+          jobs = json.load(open('/tmp/source-jobs.json'))['jobs']
+          targets = {'x86_64-unknown-linux-musl', 'aarch64-unknown-linux-musl', 'x86_64-apple-darwin', 'aarch64-apple-darwin'}
+          builds = [j for j in jobs if j['name'] in targets]
+          assert len(builds) == 4 and {j['name'] for j in builds} == targets
+          assert all(j['status'] == 'completed' and j['conclusion'] == 'success' for j in builds)
+          PY
       - uses: actions/download-artifact@v8
         with:
           path: release-dist
           merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id || github.run_id }}
       - name: Collect verified digests
         run: python3 -B scripts/release_checksums.py --dir release-dist --version "$VERSION"
       - name: Publish immutable binaries before generating their installer
@@ -114,18 +157,20 @@ jobs:
           set -euo pipefail
           mkdir release-tools
           base=https://github.com/samishal1998/bedouin/releases/download/v0.23.1
-          curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' "$base/bedouin-x86_64-unknown-linux-musl.tar.gz" -o release-tools/bedouin.tar.gz
+          curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' "$base/bedouin-installer-x86_64-unknown-linux-musl.tar.gz" -o release-tools/bedouin.tar.gz
           curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' "$base/SHA256SUMS" -o release-tools/SHA256SUMS
-          expected=$(awk '$2=="bedouin-x86_64-unknown-linux-musl.tar.gz" {print $1;n++} END {if(n!=1)exit 1}' release-tools/SHA256SUMS)
+          expected=$(awk '$2=="bedouin-installer-x86_64-unknown-linux-musl.tar.gz" {print $1;n++} END {if(n!=1)exit 1}' release-tools/SHA256SUMS)
           actual=$(sha256sum release-tools/bedouin.tar.gz)
           [[ "$expected" == "${actual%% *}" ]]
-          tar -xzf release-tools/bedouin.tar.gz -C release-tools bedouin
-          [[ "$(release-tools/bedouin --version)" == "bedouin 0.23.1" ]]
+          tar -xzf release-tools/bedouin.tar.gz -C release-tools bedouin-installer
+          [[ "$(release-tools/bedouin-installer --version)" == "bedouin-installer 0.23.1" ]]
       - name: Generate and validate release-pinned installer
         shell: bash
         run: |
           set -euo pipefail
-          release-tools/bedouin install "samishal1998/steward@$VERSION" --generate --bin steward > release-tools/generated.sh
+          # The standalone generator uses the same Forge implementation without
+          # reading a machine provisioning config or state.
+          release-tools/bedouin-installer "samishal1998/steward@$VERSION" --generate --bin steward > release-tools/generated.sh
           python3 -B scripts/prepare_installer.py --version "$VERSION" < release-tools/generated.sh > release-dist/install.sh
           sh -n release-dist/install.sh
           python3 -B scripts/release_checksums.py --dir release-dist --version "$VERSION"

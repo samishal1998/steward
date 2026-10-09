@@ -126,6 +126,17 @@ Publication/native package checks will be recorded by the linked release and
 Pages workflows. None of these packaging/UI checks establishes proxy writes,
 controller refresh, native-service lifecycle, or journal recovery capabilities.
 
+First alpha release run [37996301701](https://github.com/samishal1998/steward/actions/runs/37996301701)
+passed all four native builds, tests, executable checks and Linux static-link
+checks for tag `v0.1.0-alpha.1` at `073a1692eaf7051e0f70f11ba3ebe1b4203e919a`.
+Publication stopped before attaching the installer because the full Bedouin CLI
+requires a provisioning config even for generation. The workflow now uses the
+checksum-verified standalone `bedouin-installer` 0.23.1, sharing the same Forge
+generator without config/state. Its real published platform table passed local
+Steward validation and shell syntax with pipeline failure propagation enabled.
+Manual recovery verifies the original tag/run/native results and reuses those
+immutable build artifacts; no tag movement or native rebuild is required.
+
 | Work | Status | Owner / next action |
 |---|---|---|
 | Standalone Cargo/CLI modules | Implemented and locally checked | Maintainer: keep CLI/schema/README aligned and verify CI/MSRV |
