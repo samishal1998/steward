@@ -254,6 +254,11 @@ impl Mock {
                         Err(_) => return,
                     }
                 };
+                // macOS can inherit nonblocking mode from the accepting listener.
+                stream.set_nonblocking(false).unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();
@@ -358,6 +363,13 @@ fn denied_redirect_truncated_and_oversized_responses_never_become_empty_inventor
             http_response("200 OK", "", &"x".repeat(config::MAX_RESPONSE + 1)),
             "input.too_large",
         ),
+        (
+            format!(
+                "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{}",
+                "x".repeat(config::MAX_RESPONSE + 1)
+            ),
+            "input.too_large",
+        ),
     ] {
         let server = Mock::new(vec![response]);
         let binding = Binding {
@@ -427,6 +439,10 @@ fn unix_admin_socket_is_read_without_host_network_access() {
                 Err(_) => panic!("Unix request not received"),
             }
         };
+        stream.set_nonblocking(false).unwrap();
+        stream
+            .set_write_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();

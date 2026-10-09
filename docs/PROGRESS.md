@@ -56,6 +56,14 @@ Rust 1.89 MSRV separately. Native supervisor, reboot/logout, proxy reload/watch,
 file-only controller refresh, TLS/proxy-context network and release install tests
 remain unexecuted. A green CI build is not that live acceptance evidence.
 
+Initial remote run [37977871936](https://github.com/samishal1998/steward/actions/runs/37977871936)
+passed Linux and the Rust 1.89 MSRV check, but found a macOS mock-server bug:
+accepted sockets could inherit nonblocking mode and truncate the large response.
+The fix explicitly uses bounded blocking accepted sockets in the harness and adds
+an early Content-Length size rejection to the client. The oversized-body test also
+exercises a response without a declared length, retaining the streaming body cap.
+The failing native job was not relabeled as passing; a new run verifies the fix.
+
 ## Evidence already available
 
 * **Verified from code:** AppTrail Go/package-main/SQLite/web architecture;

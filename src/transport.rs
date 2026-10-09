@@ -186,6 +186,15 @@ pub fn fetch(binding: &Binding) -> Result<Responses> {
                 "API headers exceed 32 KiB",
             ));
         }
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_RESPONSE as u64)
+        {
+            return Err(Diagnostic::new(
+                "input.too_large",
+                "Declared API body exceeds 8 MiB",
+            ));
+        }
         if binding.engine == Engine::Traefik
             && let Some(next) = response.headers().get("X-Next-Page")
             && !matches!(next.to_str(), Ok("" | "0" | "1"))
