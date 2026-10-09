@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-09 — read-only foundation implemented.** Workspace:
+**Updated: 2026-10-09 — read-only alpha and public documentation published.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -53,7 +53,7 @@ and mock HTTP/Unix servers, not production exports or copied Apptrail source.
 
 CI runs the same fixture/mock checks on Linux/macOS and checks the declared
 Rust 1.89 MSRV separately. Native supervisor, reboot/logout, proxy reload/watch,
-file-only controller refresh, TLS/proxy-context network and release install tests
+file-only controller refresh, TLS/proxy-context network and native service install tests
 remain unexecuted. A green CI build is not that live acceptance evidence.
 
 Initial remote run [37977871936](https://github.com/samishal1998/steward/actions/runs/37977871936)
@@ -122,8 +122,8 @@ overriding the vulnerable transitive selector parser to patched 7.1.6+.
 when Expressive Code/postcss-nested resolves a patched parser normally. The actual
 site build and code-block/theme rendering are verified with the override.
 
-Publication/native package checks will be recorded by the linked release and
-Pages workflows. None of these packaging/UI checks establishes proxy writes,
+Publication/native package checks are recorded below. None of these packaging/UI
+checks establishes proxy writes,
 controller refresh, native-service lifecycle, or journal recovery capabilities.
 
 First alpha release run [37996301701](https://github.com/samishal1998/steward/actions/runs/37996301701)
@@ -137,6 +137,39 @@ Steward validation and shell syntax with pipeline failure propagation enabled.
 Manual recovery verifies the original tag/run/native results and reuses those
 immutable build artifacts; no tag movement or native rebuild is required.
 
+### Published alpha completion record — 2026-10-09
+
+- Release: [v0.1.0-alpha.1](https://github.com/samishal1998/steward/releases/tag/v0.1.0-alpha.1),
+  a public non-latest prerelease at source commit `073a1692eaf7051e0f70f11ba3ebe1b4203e919a`.
+  [Recovery run 37998237758](https://github.com/samishal1998/steward/actions/runs/37998237758)
+  **passed** using workflow fix `fba4dc53e7bb3dc25f1dd47b21eaf3795e9b250b`.
+  It verified/reused the four successful original native jobs, matched public
+  archive digests, generated/uploaded the pinned installer and exercised it.
+- Public assets: four native archives, four SHA256 sidecars, `install.sh` and
+  `SHA256SUMS`. Fresh `gh release download` followed by
+  `sha256sum --check --strict SHA256SUMS` from the download directory **passed**
+  all five catalog entries. `scripts/release_checksums.py --dir . --version
+  v0.1.0-alpha.1 --verify SHA256SUMS` **passed** the archive/sidecar/retry checks.
+- Live install on Linux x86_64: `curl -fsSL
+  https://samishal1998.github.io/steward/install.sh | sh -s -- --dir
+  /tmp/opencode/steward-alpha-live.us3M7H/bin` **passed**, with Bash `pipefail`
+  enabled. No stable release existed; the selector explicitly chose the alpha.
+  Installed `--version` returned `steward 0.1.0-alpha.1`; `file` confirmed a
+  stripped static-PIE Linux executable.
+- Downloaded all profile/intent/snapshot examples from the live Pages endpoints.
+  Installed `route list --json` returned four native routes and `changed: false`;
+  installed `plan --file examples/routes-only.yaml --json` returned
+  `changed: false`, `applicable: false`. These were synthetic offline inputs,
+  with no live controller or native-service topology involved.
+- Site: [samishal1998.github.io/steward](https://samishal1998.github.io/steward/).
+  [Pages run 37998238267](https://github.com/samishal1998/steward/actions/runs/37998238267)
+  **passed**. Headless browser checks against the live public origin **passed**
+  the landing/guide pages, 19 internal links, byte-exact installer/example
+  downloads, search, mobile overflow and light/dark themes with no page errors.
+- Capability change: the existing read-only CLI is now downloadable and
+  checksum-verified. Proxy writes, setup/TUI, native-service lifecycle,
+  controller refresh and journal recovery gates remain pending.
+
 | Work | Status | Owner / next action |
 |---|---|---|
 | Standalone Cargo/CLI modules | Implemented and locally checked | Maintainer: keep CLI/schema/README aligned and verify CI/MSRV |
@@ -149,7 +182,7 @@ immutable build artifacts; no tag movement or native rebuild is required.
 | Native/container networking and TLS | Unknown per topology | Networking owner: proxy-context reachability/verification; do not assume local loopback on remote daemon |
 | Native Linux/macOS services | Full later milestone, not dropped | Native owner: on-target scope/lifecycle/log/KeepAlive/logout/reboot tests with non-skipped evidence |
 | Setup/install/TUI/composition | Full roadmap planned | Implementers: advance after dependencies; no required daemon/process supervisor |
-| Independent release assets and docs | Workflows/scripts/site implemented and locally checked | Native release execution and live installer/Pages checks are the publication gates |
+| Independent release assets and docs | Published alpha and Pages; native package/live installer checks passed | Maintainer: preserve tag/archive immutability and advance capabilities only with their acceptance evidence |
 | License/attribution | Open | Select Steward license only with user decision; package publishing to crates.io remains disabled |
 | Optional AppTrail integration | Stage 0 boundary known, live result unknown; later contracts proposed | Integration owner: use existing proxy discovery first, then explicit new versioned importer if needed |
 
