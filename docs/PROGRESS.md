@@ -64,6 +64,13 @@ an early Content-Length size rejection to the client. The oversized-body test al
 exercises a response without a declared length, retaining the streaming body cap.
 The failing native job was not relabeled as passing; a new run verifies the fix.
 
+Remote verification of code commit `6ca80fb661b8a74b4a374cdfe51e777f49751b20`:
+[Rust checks 37978578690](https://github.com/samishal1998/steward/actions/runs/37978578690)
+**passed** Linux/macOS formatting, all 18 fixture/mock/CLI tests, and Clippy with
+warnings denied. The separate Rust 1.89 `cargo check --locked` job passed.
+This verifies the read-only foundation on those CI environments; no live proxy
+activation, native service lifecycle, or boot/logout capability is implied.
+
 ## Evidence already available
 
 * **Verified from code:** AppTrail Go/package-main/SQLite/web architecture;

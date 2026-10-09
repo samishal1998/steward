@@ -48,7 +48,8 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | Traefik | Diagnostic HTTP arrays + literal rule fixtures | Exact engine version/rule syntax support still to pin and exercise |
 | Steward Linux x86_64 | Rust 1.98.0 local tests/build | Read-only fixture/mock execution verified; live proxy/service compatibility pending |
 | Steward Linux arm64 | Planned release target | Build and native/topology execution gates pending |
-| Steward macOS arm64/x86_64 | Planned release targets | Build and non-skipped on-target runtime gates pending |
+| Steward macOS CI host | Rust 1.98 fixture/mock/CLI tests, formatting and Clippy passed in run 37978578690 | Read-only slice verified on hosted macOS; live proxy and native-manager gates pending |
+| Steward macOS arm64/x86_64 distribution | Planned release targets | Installer and complete on-target proxy/service acceptance still pending |
 
 ## Required status distinctions
 
