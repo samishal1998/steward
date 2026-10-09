@@ -141,6 +141,8 @@ pub struct Inventory {
     pub sources: Vec<Source>,
     pub routes: Vec<RouteObservation>,
     pub diagnostics: Vec<Diagnostic>,
+    #[serde(skip_serializing)]
+    pub retained_bytes: usize,
 }
 
 #[derive(Debug, Serialize)]

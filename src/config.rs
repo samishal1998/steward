@@ -48,7 +48,10 @@ pub fn load<T: DeserializeOwned>(path: &Path, limit: usize) -> Result<T> {
             strict_booleans: true,
             reject_unsupported_tags: true,
             merge_keys: serde_saphyr::MergeKeyPolicy::Error,
-            budget: serde_saphyr::budget! { max_depth: 64, max_documents: 1 },
+            budget: serde_saphyr::budget! {
+                max_depth: 64, max_documents: 1, max_aliases: 0, max_anchors: 0,
+                max_events: 100_000, max_nodes: 50_000, max_total_scalar_bytes: limit,
+            },
         };
         serde_saphyr::from_slice_with_options::<Value>(&bytes, options).map_err(|_| {
             Diagnostic::new(

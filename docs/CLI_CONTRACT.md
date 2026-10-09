@@ -65,6 +65,13 @@ request timeout 12 seconds; live inventory deadline 30 seconds per binding.
 YAML/route parsing is depth-bounded; no includes, environment interpolation,
 process execution, retry loop, background daemon, or unbounded filesystem scan.
 
+YAML anchors/aliases and merge keys are rejected in this first input contract;
+parser work is also limited to 100,000 events and 50,000 nodes. Retained expanded
+native evidence is capped at 32 MiB per binding and 64 MiB per command so shared
+large native service objects cannot multiply memory without a limit. Larger
+inventories require a shared-reference reader improvement, not simply raising
+input limits. These are serialized-size budgets, not OS-enforced RSS caps.
+
 The source fingerprint hashes the canonical parsed JSON, not original byte
 formatting. Native evidence stays in memory for the command and is not cached to
 disk. Source ETags are retained where supplied. Binding fingerprints include the

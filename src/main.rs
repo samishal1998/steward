@@ -165,7 +165,14 @@ fn run(cli: &Cli) -> Result<Envelope> {
             continue;
         }
         match inventory::inspect(binding, config.scope) {
-            Ok(value) => inventories.push(value),
+            Ok(value) => {
+                let retained: usize = inventories.iter().map(|i| i.retained_bytes).sum();
+                if value.retained_bytes > 64 * 1024 * 1024 - retained {
+                    diagnostics.push(Diagnostic::new("discovery.evidence_budget","Combined native evidence exceeds 64 MiB; inspect fewer bindings per command").at(&binding.id));
+                } else {
+                    inventories.push(value);
+                }
+            }
             Err(err) => diagnostics.push(err.at(&binding.id)),
         }
     }

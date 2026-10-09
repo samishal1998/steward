@@ -159,6 +159,7 @@ fn config_rejects_ambiguous_yaml_json_and_mutation_types() {
         "schema_version: \"1\"\nschema_version: \"2\"\nscope: user\nproxies: []",
         "schema_version: \"1\"\nscope: user\nproxies: []\n---\nx: y",
         "schema_version: !unexpected \"1\"\nscope: user\nproxies: []",
+        "schema_version: &version \"1\"\nscope: user\nproxies: []",
         "schema_version: \"1\"\nscope: user\nproxies: []\nextra: ignored",
     ] {
         fs::write(&path, text).unwrap();
@@ -525,4 +526,31 @@ fn generated_internal_and_error_routes_are_preserved_without_claiming_health() {
     assert_eq!(error.native_status, "error");
     assert_eq!(error.native["router"]["errors"][0], "synthetic");
     assert_eq!(error.ownership, "observed_external");
+}
+
+#[test]
+fn shared_large_native_service_does_not_expand_evidence_without_a_budget() {
+    let (binding, mut responses) = fixture(Engine::Traefik);
+    let service = responses
+        .values
+        .get_mut("/api/http/services")
+        .unwrap()
+        .as_array_mut()
+        .unwrap();
+    service[0]["unknown_native_payload"] = Value::String("x".repeat(1024 * 1024));
+    let routers = responses
+        .values
+        .get_mut("/api/http/routers")
+        .unwrap()
+        .as_array_mut()
+        .unwrap();
+    let base = routers[0].clone();
+    routers.clear();
+    for i in 0..40 {
+        let mut router = base.clone();
+        router["name"] = Value::String(format!("alias-{i}@file"));
+        routers.push(router);
+    }
+    let err = inventory::decode(&binding, Scope::User, responses).unwrap_err();
+    assert_eq!(err.code, "discovery.evidence_budget");
 }

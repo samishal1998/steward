@@ -46,7 +46,7 @@ and mock HTTP/Unix servers, not production exports or copied Apptrail source.
 | Command | Result / evidence boundary |
 | --- | --- |
 | `cargo check -j 1` | Passed; first dependency resolution/build |
-| `cargo test --locked -j 1 -- --test-threads=1` | Passed: 12 unit/mock/Unix tests and 6 CLI integration tests; 18 total, no skips |
+| `cargo test --locked -j 1 -- --test-threads=1` | Passed final local suite: 13 unit/mock/Unix tests and 6 CLI integration tests; 19 total, no skips |
 | `cargo clippy --locked -j 1 --all-targets -- -D warnings` | Passed after fixing compiler/lint findings |
 | `cargo fmt --check` | Passed |
 | `cargo run --locked -j 1 -- --config examples/read-only.yaml plan --file examples/routes-only.yaml --json` | Passed: one `planned_read_only` envelope, `changed: false`, stable source digests, offline/setup/apply diagnostics and `applicable: false`; no live connections |
@@ -70,6 +70,11 @@ Remote verification of code commit `6ca80fb661b8a74b4a374cdfe51e777f49751b20`:
 warnings denied. The separate Rust 1.89 `cargo check --locked` job passed.
 This verifies the read-only foundation on those CI environments; no live proxy
 activation, native service lifecycle, or boot/logout capability is implied.
+
+The final reader refinement bounds retained evidence expansion per binding and
+per command, rejects YAML anchors/aliases, and adds a large shared-service
+regression. This addresses intermediate-state growth beyond the input/body caps;
+its own source commit and checks follow the already passing foundation run.
 
 ## Evidence already available
 

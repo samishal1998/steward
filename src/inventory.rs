@@ -38,6 +38,7 @@ pub fn decode(binding: &Binding, scope: Scope, responses: Responses) -> Result<I
         sources: responses.sources,
         routes: Vec::new(),
         diagnostics: Vec::new(),
+        retained_bytes: 0,
     };
     if !inventory.runtime_confirmed {
         inventory.diagnostics.push(Diagnostic::new(
@@ -109,6 +110,22 @@ fn diagnostic(inventory: &mut Inventory, code: &str, message: &str, reference: &
     inventory
         .diagnostics
         .push(Diagnostic::new(code, message).at(reference));
+}
+
+fn retain_native(inventory: &mut Inventory, evidence: Value) -> Result<Value> {
+    let bytes = serde_json::to_vec(&evidence)
+        .expect("native JSON is serializable")
+        .len();
+    // ponytail: cap expanded evidence at 32 MiB per binding; share native object
+    // references for larger inventories rather than allowing unbounded clones.
+    if bytes > 32 * 1024 * 1024 - inventory.retained_bytes {
+        return Err(Diagnostic::new(
+            "discovery.evidence_budget",
+            "Expanded native evidence exceeds 32 MiB for this binding",
+        ));
+    }
+    inventory.retained_bytes += bytes;
+    Ok(evidence)
 }
 
 fn traefik(values: &BTreeMap<String, Value>, inventory: &mut Inventory) -> Result<()> {
@@ -225,6 +242,7 @@ fn traefik(values: &BTreeMap<String, Value>, inventory: &mut Inventory) -> Resul
         let tls = router
             .get("tls")
             .map(|v| !v.is_null() && v != &Value::Bool(false));
+        let native = retain_native(inventory, json!({"router":router,"service":service}))?;
         inventory.routes.push(RouteObservation {
             binding: inventory.binding.clone(),
             native_id: name.into(),
@@ -247,7 +265,7 @@ fn traefik(values: &BTreeMap<String, Value>, inventory: &mut Inventory) -> Resul
                 "unresolved"
             },
             native_fingerprint: fingerprint(router),
-            native: json!({"router":router,"service":service}),
+            native,
         });
     }
     Ok(())
@@ -440,15 +458,35 @@ fn walk_caddy(
                 .and_then(Value::as_str)
                 .map(|id| format!("{id}:{handler_index}"))
                 .unwrap_or_else(|| href.clone());
+            let native = retain_native(
+                inventory,
+                json!({"route":route,"handler":handler,"inherited_hosts":inherited.hosts,"inherited_paths":inherited.paths}),
+            )?;
             inventory.routes.push(RouteObservation {
-                binding: inventory.binding.clone(), native_id, reference: href,
-                origin: "caddy_configuration".into(), source:inventory.source, observed_at:inventory.observed_at.clone(), runtime_confirmed:inventory.runtime_confirmed,
-                native_status: "configured".into(), ownership: "observed_external",
-                hosts: matched.hosts.clone(), any_host:matched.any_host, paths: matched.paths.clone(), targets,
-                entrypoints: network.0.to_vec(), tls_configured: network.1,
-                matcher_coverage: if handler_covered {"literal_subset"} else {"unresolved"},
-                native_fingerprint: fingerprint(&json!({"match":route.get("match"),"handler":handler})),
-                native: json!({"route":route,"handler":handler,"inherited_hosts":inherited.hosts,"inherited_paths":inherited.paths}),
+                binding: inventory.binding.clone(),
+                native_id,
+                reference: href,
+                origin: "caddy_configuration".into(),
+                source: inventory.source,
+                observed_at: inventory.observed_at.clone(),
+                runtime_confirmed: inventory.runtime_confirmed,
+                native_status: "configured".into(),
+                ownership: "observed_external",
+                hosts: matched.hosts.clone(),
+                any_host: matched.any_host,
+                paths: matched.paths.clone(),
+                targets,
+                entrypoints: network.0.to_vec(),
+                tls_configured: network.1,
+                matcher_coverage: if handler_covered {
+                    "literal_subset"
+                } else {
+                    "unresolved"
+                },
+                native_fingerprint: fingerprint(
+                    &json!({"match":route.get("match"),"handler":handler}),
+                ),
+                native,
             });
             if inventory.routes.len() > MAX_RECORDS {
                 return Err(Diagnostic::new(
