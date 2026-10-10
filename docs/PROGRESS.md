@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-10 — alpha.2 direct local HTTP route slice implemented.** Workspace:
+**Updated: 2026-10-10 — alpha.2 direct local HTTP routes and public guides published/verified.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -248,6 +248,55 @@ compensation, killed-CLI recovery and Caddy stale-ETag rejection. Real proxies a
 foreground child processes stopped in `finally`; no host service or live user proxy
 is a test target. Linux/macOS CI runs the same non-skipped script with pinned native
 test artifacts. Platform/publication/browser evidence follows its actual runs.
+
+### Remote checks and public site
+
+Source commit `728893e0aff8a9fc3a62412a0afc6f47d1b25f66` published the direct
+commands, completion, examples, agent endpoints and brand harness. Its initial
+[Rust checks 38014047056](https://github.com/samishal1998/steward/actions/runs/38014047056)
+passed Linux live lifecycle, MSRV and docs, but macOS test artifact selection
+failed: Caddy names its macOS archives `mac_arm64`, not Traefik's `darwin_arm64`.
+Commit `ec2885d7c74b007d49e42ee0282467d194eb14dd` fixes that naming.
+[Rust checks 38014422913](https://github.com/samishal1998/steward/actions/runs/38014422913)
+**passed** Linux x86_64/macOS ARM64 Rust and installer checks, non-skipped real
+Caddy 2.11.7/Traefik 3.7.14 lifecycle/recovery suites, Rust 1.89 MSRV and docs.
+
+[Pages 38014047098](https://github.com/samishal1998/steward/actions/runs/38014047098)
+**passed**. Browser verification against the public origin passed the 22 internal
+links, byte-exact installer/llms/full-guide/native-example/snapshot downloads,
+search/themes/mobile and all three SVG directions at 1440/420/320px with query,
+button and keyboard selection. The picker is at the top so it does not obscure
+the logo/context samples. Public entries:
+`/steward/guides/quick-start/`, `/steward/llms.txt`, `/steward/llms-full.txt`,
+`/steward/project/brand/`. No brand choice has been promoted.
+
+Annotated tag `v0.1.0-alpha.2` points to verified code commit `ec2885d7…`;
+[release run 38014774774](https://github.com/samishal1998/steward/actions/runs/38014774774)
+supplies the four-target package and public installer gate. Its completion and
+installed-artifact proof are recorded after execution, not inferred from main CI.
+
+### Published alpha.2 completion
+
+[Release 38014774774](https://github.com/samishal1998/steward/actions/runs/38014774774)
+**passed** all four native targets and publish/install checks. Public non-latest
+prerelease [v0.1.0-alpha.2](https://github.com/samishal1998/steward/releases/tag/v0.1.0-alpha.2)
+contains four archives, four sidecars, `install.sh`, and `SHA256SUMS`.
+Fresh `gh release download` followed by `sha256sum --check --strict SHA256SUMS`
+**passed** all five catalog entries; `release_checksums.py --dir . --version
+v0.1.0-alpha.2 --verify SHA256SUMS` **passed** archive/sidecar/immutability checks.
+
+On Linux x86_64, with Bash `pipefail`, the live Pages default installer command
+`curl -fsSL https://samishal1998.github.io/steward/install.sh | sh -s -- --dir
+/tmp/opencode/steward-alpha2-install.ee7V5F/bin` **passed**, explicitly selecting
+alpha.2 because no stable release exists. Installed `--version` reported
+`steward 0.1.0-alpha.2`. The complete `live_route_smoke.py` suite then **passed
+against this downloaded musl executable**, with the separately checksum-verified
+Caddy 2.11.7 and Traefik 3.7.14 test executables. This verifies the packaged
+commands, completion, real local writes and recovery—not just a source build.
+Temporary native processes/inputs/install destinations remain test-only.
+
+All five requested deliverables are implemented and public. Final brand promotion
+awaits the user's choice among Waymark, Gatehouse and Switchboard.
 
 Remaining gates: broader Caddyfile/import/controller, mapped-container/TLS/setup,
 native services, full journal history, manifest apply and TUI. These changes do not

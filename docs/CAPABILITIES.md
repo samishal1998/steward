@@ -33,7 +33,7 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | macOS general native services | Fixed AppTrail LaunchAgent code and skip-capable smoke script | Planned later launchd support; native logs unavailable in audit, no execution claim |
 | Independent service-only operation | CLI test invokes unavailable service path with deliberately invalid config | Placeholder initializes no proxy/Docker; general service capability remains planned |
 | CLI/TUI and composition | Direct route/proxy/operation commands, stored API connections and shell completion | CLI slice implemented; TUI, services and composition planned |
-| Agent guidance and branding | Source-imported llms.txt/full guide and selectable SVG concept harness | Public endpoints/site checks form the publication gate; brand selection remains the user's choice |
+| Agent guidance and branding | Public source-imported llms.txt/full guide and selectable SVG concept harness; browser checks passed downloads, query/keyboard choice and small/mobile sizes | Published and verified; brand selection remains the user's choice |
 | AppTrail Stage 0 discovery | Existing Caddy/Traefik read boundaries verified from code | Requires no new provider in principle; live resulting-route identity test pending |
 | AppTrail versioned export/import/control | No file-inventory provider or service-control endpoint at baseline | Later new code/contracts; no shared DB/credentials |
 | Nginx/additional native/platform adapters | Later product scope | Deferred; Apache excluded; Windows later |
@@ -49,9 +49,9 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | caddy-docker-proxy | v2.13.1 pinned upstream source | Source inspection, not live activation compatibility |
 | Traefik | Live native 3.7.14 watched directory and literal Host rule tests | Local HTTP native topology exercised; container mapping/TLS acceptance pending |
 | Steward Linux x86_64 | Rust 1.98.0 local tests/build and real local proxy lifecycle | Initial local HTTP write/recovery slice exercised; general services remain pending |
-| Steward Linux arm64 | Planned release target | Build and native/topology execution gates pending |
-| Steward macOS CI host | Rust 1.98 fixture/mock/CLI tests, formatting and Clippy passed in run 37978578690 | Read-only slice verified on hosted macOS; live proxy and native-manager gates pending |
-| Steward macOS arm64/x86_64 distribution | Planned release targets | Installer and complete on-target proxy/service acceptance still pending |
+| Steward Linux arm64 | Alpha.2 native build/tests/executable/archive checks passed in run 38014774774 | Distribution checks are separate from exact live routing topology proof |
+| Steward macOS ARM64 CI host | Run 38014422913 passed real Caddy 2.11.7/Traefik 3.7.14 local HTTP lifecycle/recovery and Rust/installer checks | Initial local HTTP write slice exercised; broader modes and native-service lifecycle remain pending |
+| Steward macOS arm64/x86_64 distribution | Alpha.2 native build/tests/executable/archive checks passed in run 38014774774 | Distribution/installer checks do not certify every proxy or native-service topology |
 
 ## Required status distinctions
 
