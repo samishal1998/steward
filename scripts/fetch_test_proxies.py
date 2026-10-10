@@ -28,7 +28,8 @@ def install(directory):
     for name, repo, version, algorithm in PINS:
         if (directory / name).exists() or (directory / name).is_symlink():
             raise ValueError('Use an empty disposable directory; existing executables are preserved')
-        archive_name = f'{name}_{"v" if name == "traefik" else ""}{version}_{system}_{arch}.tar.gz'
+        asset_system = 'mac' if name == 'caddy' and system == 'darwin' else system
+        archive_name = f'{name}_{"v" if name == "traefik" else ""}{version}_{asset_system}_{arch}.tar.gz'
         checksum_name = f'{name}_{"v" if name == "traefik" else ""}{version}_checksums.txt'
         base = f'https://github.com/{repo}/releases/download/v{version}'
         with tempfile.TemporaryDirectory(prefix='fetch-', dir=directory) as scratch:
