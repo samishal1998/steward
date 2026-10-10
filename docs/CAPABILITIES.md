@@ -33,7 +33,7 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | macOS general native services | Fixed AppTrail LaunchAgent code and skip-capable smoke script | Planned later launchd support; native logs unavailable in audit, no execution claim |
 | Independent service-only operation | CLI test invokes unavailable service path with deliberately invalid config | Placeholder initializes no proxy/Docker; general service capability remains planned |
 | CLI/TUI and composition | Direct route/proxy/operation commands, stored API connections and shell completion | CLI slice implemented; TUI, services and composition planned |
-| Agent guidance and branding | Public source-imported llms.txt/full guide and selectable SVG concept harness; browser checks passed downloads, query/keyboard choice and small/mobile sizes | Published and verified; brand selection remains the user's choice |
+| Agent guidance and branding | Public source-imported llms.txt/full guide; user selected Waymark as the identity | Selected mark promoted to site/header/favicon/brand guide; unused concepts and picker removed |
 | AppTrail Stage 0 discovery | Existing Caddy/Traefik read boundaries verified from code | Requires no new provider in principle; live resulting-route identity test pending |
 | AppTrail versioned export/import/control | No file-inventory provider or service-control endpoint at baseline | Later new code/contracts; no shared DB/credentials |
 | Nginx/additional native/platform adapters | Later product scope | Deferred; Apache excluded; Windows later |

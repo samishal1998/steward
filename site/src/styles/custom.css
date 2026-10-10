@@ -29,7 +29,12 @@
 html { -webkit-font-smoothing: antialiased; }
 h1,h2,h3 { text-wrap: balance; letter-spacing: -.035em; }
 p { text-wrap: pretty; }
-.site-title { font-size: 1.7rem; font-weight: 720; letter-spacing: -.06em; color: var(--sl-color-white); }
+.site-title { font-size: 1.7rem; font-weight: 650; letter-spacing: -.06em; color: var(--sl-color-white); gap: .6rem; }
+.site-title::before,.brand-symbol { background: currentColor; -webkit-mask: url('../assets/waymark.svg') center / contain no-repeat; mask: url('../assets/waymark.svg') center / contain no-repeat; flex-shrink: 0; }
+.site-title::before { content: ''; inline-size: 1.9rem; block-size: 1.9rem; }
+.brand-lockup { display: flex; align-items: center; gap: 1rem; padding: clamp(1.25rem,4vw,2rem); border: 1px solid var(--sl-color-gray-5); border-radius: 20px; background: var(--sl-color-gray-6); color: var(--sl-color-white); }
+.brand-symbol { display: inline-block; inline-size: clamp(48px,8vw,64px); block-size: clamp(48px,8vw,64px); }
+.brand-wordmark { margin: 0; font-size: clamp(2.2rem,6vw,4rem); line-height: 1; font-weight: 650; letter-spacing: -.06em; }
 .hero { grid-template-columns: minmax(0,1fr); padding-block: 4rem 2rem; }
 .hero h1 { font-size: clamp(2.8rem,6vw,5.25rem); line-height: 1.05; letter-spacing: -.06em; font-weight: 570; }
 .hero-accent { color: var(--sl-color-accent-high); }

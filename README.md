@@ -1,5 +1,9 @@
 # Steward
 
+**Give every route a clear way home.**
+
+[Waymark logo & brand assets](https://samishal1998.github.io/steward/project/brand/)
+
 A standalone Rust CLI/TUI project for reverse-proxy routes and native services.
 Routes and services are independent capabilities; the OS supervises applications,
 and Steward has no required daemon or Apptrail dependency.

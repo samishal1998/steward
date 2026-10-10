@@ -298,6 +298,20 @@ Temporary native processes/inputs/install destinations remain test-only.
 All five requested deliverables are implemented and public. Final brand promotion
 awaits the user's choice among Waymark, Gatehouse and Switchboard.
 
+## Waymark promotion — 2026-10-10
+
+The user selected **Waymark**. Its original S/route geometry is now the canonical
+mark for the site header, adaptive browser favicon and downloadable SVG. The
+homepage/README use “Give every route a clear way home.” The existing brand URL
+now contains selected-identity guidance. The picker, variant component and unused
+Gatehouse/Switchboard assets were removed. One source SVG drives the CSS mask
+(selected site theme) and source-imported public SVG endpoint (browser theme).
+
+Local `npm run build --prefix site` and browser verification **passed**: actual
+Waymark header/brand masks, favicon MIME/path and byte-exact SVG download, light/
+dark layouts at 1440/390/320px, 22 internal links, search and existing public
+installer/agent/example endpoints. Pages-origin verification completes publication.
+
 Remaining gates: broader Caddyfile/import/controller, mapped-container/TLS/setup,
 native services, full journal history, manifest apply and TUI. These changes do not
 close the complete proxy-management roadmap milestone.

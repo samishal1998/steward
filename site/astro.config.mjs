@@ -7,7 +7,8 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [starlight({
     title: 'steward',
-    description: 'A clear view of your reverse-proxy routes. A careful foundation for managing what comes next.',
+    description: 'Give every route a clear way home. Native proxy tools, explicit ownership, and careful changes.',
+    favicon: '/brand/waymark.svg',
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/samishal1998/steward' }],
     editLink: { baseUrl: 'https://github.com/samishal1998/steward/edit/main/site/' },
     customCss: ['./src/styles/custom.css'],
@@ -27,7 +28,7 @@ export default defineConfig({
       { label: 'Project', items: [
         { label: 'Architecture & roadmap', slug: 'project/architecture' },
         { label: 'Development & releases', slug: 'project/releases' },
-        { label: 'Brand directions', slug: 'project/brand' },
+        { label: 'Brand & assets', slug: 'project/brand' },
       ] },
     ],
   })],
