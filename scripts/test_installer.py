@@ -10,7 +10,7 @@ import unittest
 from prepare_installer import TARGETS, prepare
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-VERSION = "v0.1.0-alpha.1"
+VERSION = "v0.1.0-alpha.2"
 
 
 class InstallerTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class InstallerTests(unittest.TestCase):
         self.rows = []
         for pattern, target in TARGETS.items():
             name = f"steward_{VERSION}_{target}.tar.gz"
-            program = b"#!/bin/sh\nprintf 'steward 0.1.0-alpha.1\\n'\n"
+            program = f"#!/bin/sh\nprintf 'steward {VERSION[1:]}\\n'\n".encode()
             with tarfile.open(self.assets / name, "w:gz") as tar:
                 entry = tarfile.TarInfo("steward")
                 entry.mode = 0o755
@@ -54,16 +54,16 @@ if url.endswith('/latest'):
     elif os.environ.get('TEST_NO_STABLE')=='2':
         print('404|https://github.com/samishal1998/steward/releases/latest',end='')
     else:
-        print('200|https://github.com/samishal1998/steward/releases/tag/v0.1.0-alpha.1',end='')
+        print('200|https://github.com/samishal1998/steward/releases/tag/'+os.environ['TEST_VERSION'],end='')
     sys.exit(0)
-if '/download/v0.1.0-alpha.1/' not in url:
+if '/download/'+os.environ['TEST_VERSION']+'/' not in url:
     sys.exit(22)
 file=pathlib.Path(os.environ['TEST_ASSETS'])/url.rsplit('/',1)[-1]
 if not file.is_file(): sys.exit(22)
 dest=pathlib.Path(a[a.index('--output')+1]); dest.write_bytes(file.read_bytes())
 ''')
         self.environment = {**os.environ, "PATH": str(self.tools) + os.pathsep + os.environ["PATH"],
-                            "TEST_ASSETS": str(self.assets), "TEST_OS": "Linux", "TEST_ARCH": "x86_64"}
+                             "TEST_ASSETS": str(self.assets), "TEST_OS": "Linux", "TEST_ARCH": "x86_64", "TEST_VERSION": VERSION}
 
     def executable(self, name, body):
         file = self.tools / name
@@ -79,7 +79,7 @@ dest=pathlib.Path(a[a.index('--output')+1]); dest.write_bytes(file.read_bytes())
         for args, env in [((), {}), (("--version", VERSION), {}), ((), {"TEST_NO_STABLE": "1"}), ((), {"TEST_NO_STABLE": "2"})]:
             result = self.run_script(launcher, args, env)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(subprocess.check_output([str(self.destination / "steward"), "--version"], text=True).strip(), "steward 0.1.0-alpha.1")
+            self.assertEqual(subprocess.check_output([str(self.destination / "steward"), "--version"], text=True).strip(), "steward " + VERSION[1:])
 
     def test_all_platform_rows(self):
         for system, arch in [("Linux", "x86_64"), ("Linux", "aarch64"), ("Linux", "arm64"), ("Darwin", "x86_64"), ("Darwin", "arm64")]:

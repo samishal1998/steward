@@ -14,9 +14,11 @@ export default defineConfig({
     sidebar: [
       { label: 'Start here', items: [
         { label: 'Installation', slug: 'guides/installation' },
-        { label: 'Your first inventory', slug: 'guides/quick-start' },
+        { label: 'Get started', slug: 'guides/quick-start' },
+        { label: 'Shell completion', slug: 'guides/completion' },
+        { label: 'Using Steward with agents', slug: 'guides/agents' },
       ] },
-      { label: 'Read-only alpha', items: [
+      { label: 'Routes & proxies', items: [
         { label: 'Proxy connections', slug: 'guides/connections' },
         { label: 'Route planning', slug: 'guides/planning' },
         { label: 'CLI & configuration', slug: 'reference/cli' },
@@ -25,6 +27,7 @@ export default defineConfig({
       { label: 'Project', items: [
         { label: 'Architecture & roadmap', slug: 'project/architecture' },
         { label: 'Development & releases', slug: 'project/releases' },
+        { label: 'Brand directions', slug: 'project/brand' },
       ] },
     ],
   })],

@@ -1,0 +1,21 @@
+# Steward
+
+> Standalone Rust CLI for native Caddy/Traefik inventory and explicit, recoverable local HTTP route management. Direct commands require v0.1.0-alpha.2. Preserve native identities, partial coverage, external ownership and operation recovery boundaries.
+
+## Start here
+
+- [Full agent guide](https://samishal1998.github.io/steward/llms-full.txt): exact commands, supported authority, JSON/exit semantics and recovery.
+- [Get started](https://samishal1998.github.io/steward/guides/quick-start/): API-only inventory, a local app hostname, updates, pause/remove and Traefik watched-directory examples.
+- [CLI reference](https://samishal1998.github.io/steward/reference/cli/): command and configuration contracts.
+- [Installation](https://samishal1998.github.io/steward/guides/installation/): checksum-verified Linux/macOS installation.
+- [Completion](https://samishal1998.github.io/steward/guides/completion/): Bash, Zsh, Fish, PowerShell and Elvish.
+
+## Operational rules
+
+Check `steward --version` and `--help`; use `--json` for operations. `proxies add --engine ... --endpoint ...` stores an inventory-only connection. Writes require explicit local file authority and `--tls http`; `routes add/update/disable/enable/remove` make live changes. Existing external resources are not adopted by name. On rejected writes inspect `changed`, diagnostic and operation ID; inspect/recover pending operations before retrying. Manifest `plan --file` remains read-only; generic apply, TLS setup, Docker-controller writes and native services are not available in this slice.
+
+## Project
+
+- [Repository](https://github.com/samishal1998/steward): source, schemas and synthetic fixtures.
+- [Releases](https://github.com/samishal1998/steward/releases): native archives, checksums and pinned installers.
+- [Roadmap](https://samishal1998.github.io/steward/project/architecture/): remaining compatibility and implementation gates.

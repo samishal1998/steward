@@ -6,6 +6,8 @@ pub struct Diagnostic {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource: Option<String>,
+    #[serde(skip)]
+    pub changed: bool,
 }
 
 impl Diagnostic {
@@ -14,11 +16,17 @@ impl Diagnostic {
             code: code.into(),
             message: message.into(),
             resource: None,
+            changed: false,
         }
     }
 
     pub fn at(mut self, resource: impl Into<String>) -> Self {
         self.resource = Some(resource.into());
+        self
+    }
+
+    pub fn with_changes(mut self) -> Self {
+        self.changed = true;
         self
     }
 }

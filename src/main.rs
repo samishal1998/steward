@@ -1,6 +1,7 @@
 mod config;
 mod error;
 mod inventory;
+mod managed;
 mod model;
 mod plan;
 mod rules;
@@ -14,22 +15,28 @@ use std::{
     process::ExitCode,
 };
 
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use serde::Serialize;
 use serde_json::{Value, json};
 
 use error::{Diagnostic, Result};
-use model::Inventory;
+use model::{Binding, Engine, Inventory, RouteSpec, TlsMode, TlsPolicy, Upstream};
 
 #[derive(Parser)]
 #[command(
     version,
-    about = "Explicit read-only proxy inventory and route planning",
-    long_about = "Steward foundation: inspect Caddy/Traefik and preview route intent. Management, bootstrap, native service control, and TUI are pending compatibility and recovery milestones. No command in this build changes infrastructure."
+    about = "Inspect proxies and manage explicitly connected HTTP routes",
+    long_about = "Steward: native Caddy/Traefik inventory, route previews, and recoverable HTTP route changes through explicitly connected local file-backed proxies. General native services, TLS setup, Docker-controller writes, and TUI remain planned."
 )]
 struct Cli {
     #[arg(long, global = true)]
     config: Option<PathBuf>,
+    #[arg(
+        long,
+        global = true,
+        help = "Managed connections, receipts, and journal directory"
+    )]
+    state_dir: Option<PathBuf>,
     #[arg(
         long,
         global = true,
@@ -42,10 +49,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    #[command(subcommand)]
+    #[command(name = "proxies", visible_alias = "proxy", subcommand)]
     Proxy(ProxyCommand),
-    #[command(subcommand)]
+    #[command(name = "routes", visible_alias = "route", subcommand)]
     Route(RouteCommand),
+    #[command(about = "Generate a shell completion script without loading configuration")]
+    Completions {
+        shell: clap_complete::Shell,
+    },
+    #[command(subcommand)]
+    Operations(OperationCommand),
     Doctor,
     Plan {
         #[arg(long)]
@@ -64,7 +77,48 @@ enum Command {
 #[derive(Subcommand)]
 enum ProxyCommand {
     List,
-    Inspect { id: String },
+    Inspect {
+        id: String,
+    },
+    #[command(
+        about = "Connect an authorized API; optional file authority enables local HTTP writes"
+    )]
+    Add(ConnectArgs),
+}
+
+#[derive(Args)]
+struct ConnectArgs {
+    id: String,
+    #[arg(long, value_enum)]
+    engine: Engine,
+    #[arg(long)]
+    endpoint: String,
+    #[arg(
+        long,
+        requires = "listener",
+        help = "Complete JSON startup file for Caddy, or YAML/JSON static startup file for Traefik"
+    )]
+    config_file: Option<PathBuf>,
+    #[arg(
+        long,
+        requires = "config_file",
+        help = "Caddy server name, or Traefik entrypoint name"
+    )]
+    listener: Option<String>,
+    #[arg(
+        long,
+        requires = "config_file",
+        help = "Existing watched directory (Traefik only)"
+    )]
+    directory: Option<PathBuf>,
+    #[arg(
+        long,
+        default_value = "caddy",
+        help = "Same-environment Caddy validator executable"
+    )]
+    caddy_bin: PathBuf,
+    #[arg(long)]
+    auth_file: Option<PathBuf>,
 }
 #[derive(Subcommand)]
 enum RouteCommand {
@@ -72,6 +126,59 @@ enum RouteCommand {
     Inspect {
         #[arg(long)]
         proxy: String,
+        id: String,
+    },
+    #[command(about = "Create and activate an owned HTTP route")]
+    Add {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+        #[arg(long = "host")]
+        hostname: String,
+        #[arg(long)]
+        upstream: String,
+        #[arg(
+            long,
+            value_enum,
+            help = "Explicit frontend policy; writable mode currently supports http"
+        )]
+        tls: TlsMode,
+    },
+    #[command(about = "Update an owned route and verify activation")]
+    Update {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+        #[arg(long = "host", required_unless_present = "upstream")]
+        hostname: Option<String>,
+        #[arg(long, required_unless_present = "hostname")]
+        upstream: Option<String>,
+    },
+    Disable {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+    },
+    Enable {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+    },
+    #[command(visible_alias = "rm")]
+    Remove {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum OperationCommand {
+    List,
+    #[command(
+        about = "Compensate an unfinished write while input/runtime fingerprints still match"
+    )]
+    Recover {
         id: String,
     },
 }
@@ -104,20 +211,176 @@ fn run(cli: &Cli) -> Result<Envelope> {
             "General native service management is a later milestone; no proxy or Docker connection was initialized",
         ));
     }
+    let managed_root = || {
+        cli.state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)
+    };
+    let mutation = match &cli.command {
+        Some(Command::Route(RouteCommand::Add {
+            id,
+            proxy,
+            hostname,
+            upstream,
+            tls,
+        })) => Some((
+            proxy,
+            managed::Edit::Add(RouteSpec {
+                id: id.clone(),
+                proxy: proxy.clone(),
+                hostname: hostname.clone(),
+                upstream: Upstream {
+                    url: upstream.clone(),
+                },
+                enabled: true,
+                tls: TlsPolicy { mode: tls.clone() },
+            }),
+        )),
+        Some(Command::Route(RouteCommand::Update {
+            id,
+            proxy,
+            hostname,
+            upstream,
+        })) => Some((
+            proxy,
+            managed::Edit::Set {
+                id: id.clone(),
+                hostname: hostname.clone(),
+                upstream: upstream.clone(),
+                enabled: None,
+            },
+        )),
+        Some(Command::Route(RouteCommand::Disable { id, proxy })) => Some((
+            proxy,
+            managed::Edit::Set {
+                id: id.clone(),
+                hostname: None,
+                upstream: None,
+                enabled: Some(false),
+            },
+        )),
+        Some(Command::Route(RouteCommand::Enable { id, proxy })) => Some((
+            proxy,
+            managed::Edit::Set {
+                id: id.clone(),
+                hostname: None,
+                upstream: None,
+                enabled: Some(true),
+            },
+        )),
+        Some(Command::Route(RouteCommand::Remove { id, proxy })) => {
+            Some((proxy, managed::Edit::Remove(id.clone())))
+        }
+        _ => None,
+    };
+    if mutation.is_some()
+        || matches!(
+            cli.command,
+            Some(Command::Proxy(ProxyCommand::Add(_))) | Some(Command::Operations(_))
+        )
+    {
+        if cli.config.is_some() {
+            return Err(Diagnostic::new(
+                "cli.managed_state",
+                "Direct writes use stored connections; omit --config and use proxies add",
+            ));
+        }
+        let mut store = managed::Store::open(managed_root()?)?;
+        let (data, changed, status) = if let Some((proxy, edit)) = mutation {
+            (store.edit(proxy, edit)?, true, "applied")
+        } else {
+            match &cli.command {
+                Some(Command::Proxy(ProxyCommand::Add(args))) => {
+                    let authority = if let Some(file) = &args.config_file {
+                        match args.engine {
+                            Engine::Caddy => {
+                                if args.directory.is_some() {
+                                    return Err(Diagnostic::new(
+                                        "cli.authority",
+                                        "--directory is for Traefik",
+                                    ));
+                                }
+                                managed::Authority::CaddyJson {
+                                    file: file.clone(),
+                                    server: args
+                                        .listener
+                                        .clone()
+                                        .expect("required with config-file"),
+                                    binary: managed::executable(&args.caddy_bin)?,
+                                }
+                            }
+                            Engine::Traefik => managed::Authority::TraefikDirectory {
+                                startup: file.clone(),
+                                entrypoint: args
+                                    .listener
+                                    .clone()
+                                    .expect("required with config-file"),
+                                directory: args.directory.clone().ok_or_else(|| {
+                                    Diagnostic::new("cli.authority", "Traefik requires --directory")
+                                })?,
+                            },
+                        }
+                    } else {
+                        managed::Authority::ReadOnly
+                    };
+                    let connection = managed::Connection {
+                        binding: Binding {
+                            id: args.id.clone(),
+                            engine: args.engine,
+                            endpoint: args.endpoint.clone(),
+                            auth_file: args
+                                .auth_file
+                                .as_ref()
+                                .map(|p| p.to_string_lossy().into_owned()),
+                            snapshot_file: None,
+                        },
+                        authority,
+                    };
+                    (store.connect(connection)?, true, "connected")
+                }
+                Some(Command::Operations(OperationCommand::List)) => {
+                    (store.operations()?, false, "observed")
+                }
+                Some(Command::Operations(OperationCommand::Recover { id })) => {
+                    (store.recover(id)?, true, "compensated")
+                }
+                _ => unreachable!(),
+            }
+        };
+        return Ok(Envelope {
+            schema_version: "1",
+            status,
+            changed,
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
     let manifest = if let Some(Command::Plan { file }) = &cli.command {
         Some(config::load_manifest(file)?)
     } else {
         None
     };
-    let path=cli.config.as_ref().ok_or_else(||Diagnostic::new("config.required","Pass --config with explicit version-1 proxy bindings; there is no implicit discovery or setup"))?;
-    let mut config = config::load_config(path)?;
+    let store = if cli.config.is_none() {
+        Some(managed::Store::open(managed_root()?)?)
+    } else {
+        None
+    };
+    let mut config = if let Some(path) = &cli.config {
+        config::load_config(path)?
+    } else {
+        store.as_ref().expect("managed read").config()
+    };
     // Snapshot paths are relative to the profile, not the invoking shell's directory.
     for binding in &mut config.proxies {
         if let Some(snapshot) = &binding.snapshot_file
             && !std::path::Path::new(snapshot).is_absolute()
         {
             binding.snapshot_file = Some(
-                path.parent()
+                cli.config
+                    .as_ref()
+                    .expect("snapshot profile")
+                    .parent()
                     .unwrap_or_else(|| std::path::Path::new("."))
                     .join(snapshot)
                     .to_string_lossy()
@@ -165,7 +428,10 @@ fn run(cli: &Cli) -> Result<Envelope> {
             continue;
         }
         match inventory::inspect(binding, config.scope) {
-            Ok(value) => {
+            Ok(mut value) => {
+                if let Some(store) = &store {
+                    managed::qualify_ownership(&store.book, &mut value);
+                }
                 let retained: usize = inventories.iter().map(|i| i.retained_bytes).sum();
                 if value.retained_bytes > 64 * 1024 * 1024 - retained {
                     diagnostics.push(Diagnostic::new("discovery.evidence_budget","Combined native evidence exceeds 64 MiB; inspect fewer bindings per command").at(&binding.id));
@@ -213,7 +479,25 @@ fn run(cli: &Cli) -> Result<Envelope> {
             let route = inventories
                 .iter()
                 .flat_map(|i| i.routes.iter())
-                .find(|r| &r.native_id == id)
+                .find(|r| {
+                    &r.native_id == id
+                        || store.as_ref().is_some_and(|s| {
+                            s.book.routes.iter().any(|owned| {
+                                owned.spec.id == *id
+                                    && owned.spec.proxy == r.binding
+                                    && r.native_id
+                                        == match config
+                                            .proxies
+                                            .iter()
+                                            .find(|p| p.id == r.binding)
+                                            .map(|p| p.engine)
+                                        {
+                                            Some(Engine::Caddy) => format!("{}:0", owned.native_id),
+                                            _ => format!("{}@file", owned.native_id),
+                                        }
+                            })
+                        })
+                })
                 .ok_or_else(|| {
                     Diagnostic::new(
                         "resource.not_found",
@@ -239,7 +523,16 @@ fn output(envelope: &Envelope, json_mode: bool) -> io::Result<()> {
         serde_json::to_writer_pretty(&mut out, envelope)?;
         writeln!(out)?;
     } else {
-        writeln!(out, "Steward: {} (no changes)", envelope.status)?;
+        writeln!(
+            out,
+            "Steward: {} ({})",
+            envelope.status,
+            if envelope.changed {
+                "changes recorded"
+            } else {
+                "no changes"
+            }
+        )?;
         // JSON provides a readable escaped native inventory without terminal control injection.
         serde_json::to_writer_pretty(&mut out, &envelope.data)?;
         writeln!(out)?;
@@ -285,6 +578,17 @@ fn main() -> ExitCode {
         println!();
         return ExitCode::SUCCESS;
     }
+    if let Some(Command::Completions { shell }) = cli.command {
+        // The static command tree emits a small script; buffering keeps generator
+        // internals from panicking when a downstream reader closes stdout early.
+        let mut script = Vec::new();
+        clap_complete::generate(shell, &mut Cli::command(), "steward", &mut script);
+        return match io::stdout().write_all(&script) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) if e.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+            Err(_) => ExitCode::from(1),
+        };
+    }
     match run(&cli) {
         Ok(envelope) => match output(&envelope, cli.json) {
             Ok(()) => ExitCode::SUCCESS,
@@ -295,7 +599,7 @@ fn main() -> ExitCode {
             let envelope = Envelope {
                 schema_version: "1",
                 status: "rejected",
-                changed: false,
+                changed: error.changed,
                 data: Value::Null,
                 diagnostics: vec![error],
             };

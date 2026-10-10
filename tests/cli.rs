@@ -133,3 +133,84 @@ fn an_empty_manifest_initializes_no_proxy_and_never_prunes() {
     assert!(output["data"]["actions"].as_array().unwrap().is_empty());
     assert_eq!(output["changed"], false);
 }
+
+#[test]
+fn all_shell_completions_bypass_configuration_and_state() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = directory.path().join("never-created");
+    for shell in ["bash", "zsh", "fish", "elvish", "powershell"] {
+        let result = binary()
+            .arg("--state-dir")
+            .arg(&state)
+            .args(["--config", "/never/read", "completions", shell])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(String::from_utf8_lossy(&result.stdout).contains("upstream"));
+        assert!(!state.exists());
+    }
+}
+
+#[test]
+fn direct_writes_reject_profile_override_before_loading_inputs() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = directory.path().join("state");
+    let result = binary()
+        .arg("--state-dir")
+        .arg(&state)
+        .args([
+            "--config",
+            "/never/read",
+            "routes",
+            "add",
+            "app",
+            "--proxy",
+            "edge",
+            "--host",
+            "app.localhost",
+            "--upstream",
+            "http://127.0.0.1:3000",
+            "--tls",
+            "http",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["diagnostics"][0]["code"], "cli.managed_state");
+    assert_eq!(value["changed"], false);
+    assert!(!state.exists());
+}
+
+#[test]
+fn unmanaged_routes_are_not_adopted_or_removed_by_name() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = directory.path().join("state");
+    std::fs::create_dir(&state).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&state, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let source = directory.path().join("caddy.json");
+    let original = r#"{"apps":{"http":{"servers":{"web":{"listen":["127.0.0.1:12345"],"automatic_https":{"disable":true},"routes":[]}}}}}"#;
+    std::fs::write(&source, original).unwrap();
+    let book = serde_json::json!({"schema_version":"1","owner":"0123456789abcdef","connections":[{"binding":{"id":"local","engine":"caddy","endpoint":"http://127.0.0.1:1"},"authority":{"kind":"caddy_json","file":source,"server":"web","binary":"/not/run"}}],"routes":[]});
+    std::fs::write(state.join("state.json"), serde_json::to_vec(&book).unwrap()).unwrap();
+    let result = binary()
+        .arg("--state-dir")
+        .arg(&state)
+        .args(["routes", "remove", "external", "--proxy", "local", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["diagnostics"][0]["code"], "ownership.required");
+    assert_eq!(value["changed"], false);
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), original);
+    assert!(!state.join("operation.json").exists());
+}

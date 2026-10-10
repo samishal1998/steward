@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: Install Steward's read-only alpha on Linux or macOS without building from source.
+description: Install Steward's direct-route alpha on Linux or macOS without building from source.
 ---
 
-Steward currently ships a **read-only alpha**. It inspects Caddy and Traefik APIs and previews route intent. Route writes, proxy installation, native-service management, composition, and the TUI remain on the roadmap.
+Steward **alpha.2** adds shell completions and direct, recoverable local HTTP route commands to native Caddy/Traefik inventory. Proxy installation, broader controller/TLS modes, native services, composition and TUI retain their roadmap gates.
 
 ## Linux and macOS
 
@@ -27,7 +27,7 @@ Supported downloads:
 | macOS | Intel x86_64 | Native macOS executable |
 | macOS | Apple Silicon ARM64 | Native macOS executable |
 
-The installer defaults to GitHub's latest stable release. When no stable release exists, it explicitly selects the documented read-only alpha **v0.1.0-alpha.1**. Newer prereleases do not silently become stable updates.
+The installer defaults to GitHub's latest stable release, or an explicitly documented alpha when none exists. Pin **v0.1.0-alpha.2** below for the direct commands; newer prereleases do not silently become stable updates.
 
 It verifies the release installer’s checksum, then the binary archive’s pinned checksum and the executable’s product/version. Installation is staged and atomically placed in `~/.local/bin/steward`. It does not require sudo, change shell configuration, start services, or enable a proxy API.
 
@@ -37,7 +37,7 @@ The machine needs `curl`, `tar`, standard Unix tools, and either `sha256sum` or 
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.1.0-alpha.1 --dir "$HOME/bin"
+  sh -s -- --version v0.1.0-alpha.2 --dir "$HOME/bin"
 ```
 
 `STEWARD_VERSION` and `STEWARD_BIN_DIR` are also accepted. `BEDOUIN_BIN_DIR` is supported for compatibility with Bedouin-generated installers. Custom installation directories must be absolute and writable by your user.
@@ -59,10 +59,10 @@ Checksum checks provide download integrity under the GitHub/HTTPS trust boundary
 If Bedouin is already installed:
 
 ```sh
-bedouin install samishal1998/steward@v0.1.0-alpha.1 --yes
+bedouin-installer samishal1998/steward@v0.1.0-alpha.2
 ```
 
-Maintainers also use Bedouin’s `--generate` mode to resolve the platform URLs and digests for release-specific installers. The shell installer itself does not require Bedouin.
+Maintainers use the standalone Bedouin generator's `--generate` mode to resolve platform URLs/digests without a provisioning config. The shell installer itself does not require Bedouin.
 
 ## Manual downloads
 
@@ -79,4 +79,4 @@ cargo build --locked -j 1
 ./target/debug/steward --help
 ```
 
-Requires Rust 1.89 or newer. Source builds and release downloads use the same standalone CLI. Next, [try an offline inventory](../quick-start/).
+Requires Rust 1.89 or newer. Source builds and release downloads use the same standalone CLI. Next, [get started with direct commands](../quick-start/) and [enable shell completion](../completion/).

@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::error::Diagnostic;
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum Engine {
     Caddy,
@@ -19,7 +19,7 @@ pub enum Scope {
     System,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub schema_version: String,
@@ -73,7 +73,7 @@ pub struct TlsPolicy {
     pub mode: TlsMode,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum TlsMode {
     Public,

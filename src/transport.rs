@@ -86,60 +86,7 @@ pub fn fetch(binding: &Binding) -> Result<Responses> {
             live: false,
         });
     }
-    let mut builder = Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(12));
-    let mut base = binding.endpoint.trim_end_matches('/').to_owned();
-    if let Some(socket) = binding.endpoint.strip_prefix("unix://") {
-        #[cfg(unix)]
-        {
-            builder = builder.unix_socket(socket);
-            base = "http://localhost".into();
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = socket;
-            return Err(Diagnostic::new(
-                "capability.unsupported",
-                "Unix sockets are unavailable on this platform",
-            ));
-        }
-    }
-    let client = builder.build().map_err(|_| {
-        Diagnostic::new(
-            "connection.client",
-            "Could not construct the verified HTTP client",
-        )
-    })?;
-    let authorization = if let Some(path) = &binding.auth_file {
-        let bytes = config::read_bounded(Path::new(path), 8192)?;
-        let text = std::str::from_utf8(&bytes)
-            .map_err(|_| {
-                Diagnostic::new(
-                    "connection.authorization",
-                    "Authorization file must be UTF-8",
-                )
-            })?
-            .trim();
-        if text.is_empty() || text.chars().any(char::is_control) {
-            return Err(Diagnostic::new(
-                "connection.authorization",
-                "Authorization file must contain one complete header value",
-            ));
-        }
-        let mut header = HeaderValue::from_str(text).map_err(|_| {
-            Diagnostic::new(
-                "connection.authorization",
-                "Invalid Authorization header value",
-            )
-        })?;
-        header.set_sensitive(true);
-        Some(header)
-    } else {
-        None
-    };
+    let (client, base, authorization) = live_client(binding)?;
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut values = BTreeMap::new();
     let mut sources = Vec::new();
@@ -236,4 +183,94 @@ pub fn fetch(binding: &Binding) -> Result<Responses> {
         observed_at: now(),
         live: true,
     })
+}
+
+fn live_client(binding: &Binding) -> Result<(Client, String, Option<HeaderValue>)> {
+    let mut builder = Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(12));
+    let mut base = binding.endpoint.trim_end_matches('/').to_owned();
+    if let Some(socket) = binding.endpoint.strip_prefix("unix://") {
+        #[cfg(unix)]
+        {
+            builder = builder.unix_socket(socket);
+            base = "http://localhost".into();
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = socket;
+            return Err(Diagnostic::new(
+                "capability.unsupported",
+                "Unix sockets are unavailable on this platform",
+            ));
+        }
+    }
+    let client = builder.build().map_err(|_| {
+        Diagnostic::new(
+            "connection.client",
+            "Could not construct the verified HTTP client",
+        )
+    })?;
+    let authorization = if let Some(path) = &binding.auth_file {
+        let bytes = config::read_bounded(Path::new(path), 8192)?;
+        let text = std::str::from_utf8(&bytes)
+            .map_err(|_| {
+                Diagnostic::new(
+                    "connection.authorization",
+                    "Authorization file must be UTF-8",
+                )
+            })?
+            .trim();
+        if text.is_empty() || text.chars().any(char::is_control) {
+            return Err(Diagnostic::new(
+                "connection.authorization",
+                "Authorization file must contain one complete header value",
+            ));
+        }
+        let mut header = HeaderValue::from_str(text).map_err(|_| {
+            Diagnostic::new(
+                "connection.authorization",
+                "Invalid Authorization header value",
+            )
+        })?;
+        header.set_sensitive(true);
+        Some(header)
+    } else {
+        None
+    };
+    Ok((client, base, authorization))
+}
+
+pub fn replace_caddy(binding: &Binding, value: &Value, etag: &str) -> Result<()> {
+    let (client, base, authorization) = live_client(binding)?;
+    let mut request = client
+        .post(format!("{base}/config/"))
+        .header("Content-Type", "application/json")
+        .header("If-Match", etag)
+        .body(serde_json::to_vec(value).expect("native JSON"));
+    if let Some(header) = authorization {
+        request = request.header("Authorization", header);
+    }
+    let response = request.send().map_err(|_| {
+        Diagnostic::new(
+            "activation.uncertain",
+            "Caddy activation response was unavailable; use operations recover",
+        )
+    })?;
+    if !response.status().is_success() {
+        return Err(Diagnostic::new(
+            if response.status().as_u16() == 412 {
+                "operation.stale"
+            } else {
+                "activation.rejected"
+            },
+            format!(
+                "Caddy rejected activation with HTTP {}",
+                response.status().as_u16()
+            ),
+        ));
+    }
+    Ok(())
 }

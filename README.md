@@ -4,10 +4,12 @@ A standalone Rust CLI/TUI project for reverse-proxy routes and native services.
 Routes and services are independent capabilities; the OS supervises applications,
 and Steward has no required daemon or Apptrail dependency.
 
-**Current status: read-only foundation, not the proxy-management release.** The CLI
-inspects explicitly configured Caddy/Traefik APIs or synthetic saved responses and
-previews exact-host route intent. Writes, proxy setup/install, general native
-services, composition, and the TUI remain planned behind the documented gates.
+**Current status: alpha.2 — direct HTTP route management plus native inventory.**
+Connect existing APIs through commands, then add/update/disable/enable/remove owned
+HTTP routes on explicitly authorized local Caddy JSON or Traefik watched-directory
+inputs. Saved-response inventory and manifest previews remain available. Broader
+TLS/setup, Docker-controller writes, native services, composition and TUI retain
+their documented gates.
 
 **[Website & guides](https://samishal1998.github.io/steward/)** · **[Downloads](https://github.com/samishal1998/steward/releases)**
 
@@ -21,16 +23,57 @@ curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
 ```
 
 The installer follows the latest stable release, or explicitly falls back to the
-documented read-only alpha `v0.1.0-alpha.1` when none exists. It verifies the release
+documented alpha `v0.1.0-alpha.2` when none exists. It verifies the release
 installer, archive digest, and executable version, then places the CLI atomically
 in `~/.local/bin`. No sudo, shell edits, proxy setup, or service startup. Use
-`sh -s -- --version v0.1.0-alpha.1 --dir "$HOME/bin"` for a pin/custom destination.
+`sh -s -- --version v0.1.0-alpha.2 --dir "$HOME/bin"` for a pin/custom destination.
 
 Release-specific installers use Bedouin-resolved platform URLs and embedded
 digests; no Bedouin/Python/Node/Rust runtime is required by the shell installer.
 See the [installation guide](https://samishal1998.github.io/steward/guides/installation/).
 
-## Try the implemented slice
+## Use commands directly
+
+No Steward YAML is needed to register an inventory-only connection:
+
+```sh
+steward proxies add edge --engine traefik --endpoint http://127.0.0.1:8080
+steward routes list --json
+```
+
+For live local HTTP writes, declare the existing native startup authority once:
+
+```sh
+steward proxies add local --engine caddy --endpoint http://127.0.0.1:22019 \
+  --config-file "$PWD/caddy-http.json" --listener web
+steward routes add app --proxy local --host app.localhost \
+  --upstream http://127.0.0.1:3000 --tls http
+steward routes update app --proxy local --upstream http://127.0.0.1:4000
+steward routes disable app --proxy local
+steward routes enable app --proxy local
+steward routes remove app --proxy local
+```
+
+The first writable slice needs an HTTP-only local Caddy server or Traefik watched
+directory, a reachable backend returning 2xx/3xx at `/`, and a private persistent
+state directory. Caddy source must match loaded native JSON and provide an ETag;
+full candidates are validated and conditionally activated. Traefik uses a separate
+owned aggregate and verifies native router/service activation. Both preserve
+external routes and use source/state locks, receipts and guarded compensation.
+See [Get started](https://samishal1998.github.io/steward/guides/quick-start/) for a
+complete disposable example using [`examples/caddy-http.json`](examples/caddy-http.json).
+
+```sh
+steward operations list --json
+steward operations recover OPERATION_ID --json
+source <(steward completions bash)
+```
+
+Completion supports Bash, Zsh, Fish, Elvish and PowerShell. Agents can read
+[llms.txt](https://samishal1998.github.io/steward/llms.txt) and the source-backed
+[full guide](https://samishal1998.github.io/steward/llms-full.txt).
+
+## Read-only profiles and previews
 
 Requires Rust 1.89 or newer. This repository has one Cargo package and a committed
 dependency lockfile; no Go, Node.js, Apptrail server, or database is needed.
@@ -61,7 +104,7 @@ profiles and run:
 API, mount a socket, restart a proxy, or change network access. Docker labels and
 file-authority discovery are not implemented in this first slice.
 
-## Exact commands in this build
+## Read-only profile commands
 
 | Command | Behavior |
 | --- | --- |
@@ -74,8 +117,8 @@ file-authority discovery are not implemented in this first slice.
 | `apply` / `service list` | Structured unavailable-capability error before config loading or connection setup |
 
 `--config FILE` and `--json` are global options. JSON mode emits one schema-v1
-envelope on stdout, including command/config/connection errors. `changed` is always
-false. Exit 0 means the read/preview completed, **not that mutations are approved**;
+envelope on stdout, including command/config/connection errors. `changed` is
+false for these reads/previews. Exit 0 means the read/preview completed, **not that mutations are approved**;
 partial coverage is reported in the envelope. Exit 2 means validation, capability,
 or connection rejection; exit 1 is an output failure. Broken pipes exit normally.
 
@@ -87,7 +130,8 @@ scalar types, unsupported tags, and multiple documents. Inputs and API responses
 have explicit byte/record/depth limits. Snapshot paths are relative to the profile;
 authorization-file paths are absolute.
 
-Every observed native route remains **external**. Names, labels, matching hosts,
+Profile-only observed native routes remain **external**. Direct managed reads can
+qualify receipt-matched routes as `owned` or `owned_drifted`. Names, labels, matching hosts,
 or an API's availability do not confer ownership. Unsupported matchers/handlers,
 disabled/error statuses, and generated internal routes remain visible. Native
 payloads remain available internally for analysis/fingerprints; full raw configs
@@ -150,6 +194,6 @@ validates the resolved installer table, and exercises the published installer.
 Stable releases become latest only after the installer succeeds; alpha tags stay
 prereleases. A retry checks public binary digests rather than replacing them.
 
-These releases package the current read-only alpha. Future route writes, TUI,
-proxy/bootstrap and native-service support still require their acceptance gates.
+These releases package the current alpha. Broader proxy modes, TLS/setup, TUI,
+bootstrap and native-service support still require their acceptance gates.
 See [release maintenance](https://samishal1998.github.io/steward/project/releases/).

@@ -30,6 +30,12 @@ jobs:
         run: cargo +1.98.0 clippy --locked --all-targets -- -D warnings
       - name: Installer contracts
         run: sh -n install.sh && python3 -B -m unittest discover -s scripts -p 'test_*.py'
+      - name: Fetch pinned test-only proxy executables
+        run: python3 -B scripts/fetch_test_proxies.py --dir "$RUNNER_TEMP/steward-proxies"
+      - name: Real local route lifecycle and recovery
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: python3 -B scripts/live_route_smoke.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy" --traefik "$RUNNER_TEMP/steward-proxies/traefik"
 
   msrv:
     runs-on: ubuntu-latest

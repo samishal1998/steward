@@ -9,7 +9,7 @@ Steward is a standalone Rust project. The CLI and planned TUI use the same appli
 
 The current implementation is one Cargo package with internal modules. It avoids a generic shared provider framework and cross-language runtime coupling. The [repository decision](https://github.com/samishal1998/steward/blob/main/docs/decisions/repository-placement.md) documents why Apptrail’s dashboard observations are not Steward’s infrastructure authority.
 
-## Current read-only alpha
+## Current direct-route alpha
 
 Implemented:
 
@@ -18,12 +18,17 @@ Implemented:
 - Offline synthetic snapshots with honest qualification.
 - Exact-host route validation and deterministic conflict previews.
 - Versioned JSON results and bounded transport/parser/evidence handling.
+- Stored API connections without YAML and completions for five shells.
+- Receipt-owned HTTP route add/update/disable/enable/remove on explicit local
+  Caddy JSON and Traefik watched-directory authority.
+- State/input locks, a bounded durable operation journal, native/routing checks,
+  failed-activation compensation and interrupted-operation recovery.
 
 Inventory success does not grant ownership or make a proxy safely writable. Native reported configuration, route activation, upstream health, DNS, and TLS readiness are separate evidence levels.
 
-## Before enabling route writes
+## Beyond the first writable slice
 
-The next milestones add an ownership receipt/fingerprint model, scoped writer locks, durable journals, input staging, revalidation, activation observation, and drift-aware compensation.
+The initial operation path implements those safeguards for local HTTP-only file-backed routes. Its journal retains one latest operation; broader audit history and authority/setup modes are later refinements. Live checks use disposable Caddy 2.11.7 and Traefik 3.7.14 processes. This does not complete the full proxy-management milestone.
 
 Compatibility experiments must prove:
 
@@ -37,8 +42,8 @@ Both proxy families remain in scope for the management release. A readable API i
 
 | Stage | Capability |
 | --- | --- |
-| Available alpha | Read-only inventory and route preview |
-| Next foundation | Compatibility experiments, ownership, journaled apply/recovery |
+| Available alpha | Native inventory/previews, direct local HTTP routes, receipts/recovery, shell completion |
+| Next foundation | Broader authority/controller/TLS compatibility, historical operations and manifest apply |
 | Proxy-management release | Caddy ordinary/controller modes, Traefik watched files, explicit setup/install, CLI/TUI |
 | Native services | General foreground commands through Linux systemd/macOS launchd, independently of proxies/Docker |
 | Composition | Readiness-gated service-first publication and route-first shutdown with partial outcomes |

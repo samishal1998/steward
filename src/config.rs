@@ -113,25 +113,33 @@ pub fn load_manifest(path: &Path) -> Result<Manifest> {
     for route in &mut manifest.routes {
         resource_id(&route.id)?;
         resource_id(&route.proxy)?;
-        if !ids.insert(&route.id) {
+        if !ids.insert(route.id.clone()) {
             return Err(Diagnostic::new(
                 "config.duplicate_id",
                 "Route IDs must be unique",
             ));
         }
-        route.hostname = exact_host(&route.hostname)?;
-        let upstream = http_url(&route.upstream.url)?;
-        if upstream.fragment().is_some()
-            || upstream.query().is_some()
-            || !matches!(upstream.path(), "" | "/")
-        {
-            return Err(Diagnostic::new(
-                "route.upstream",
-                "Upstream must be one HTTP(S) origin without query, fragment, or path rewriting",
-            ));
-        }
+        validate_route(route)?;
     }
     Ok(manifest)
+}
+
+pub fn validate_route(route: &mut crate::model::RouteSpec) -> Result<()> {
+    resource_id(&route.id)?;
+    resource_id(&route.proxy)?;
+    route.hostname = exact_host(&route.hostname)?;
+    let upstream = http_url(&route.upstream.url)?;
+    if upstream.fragment().is_some()
+        || upstream.query().is_some()
+        || !matches!(upstream.path(), "" | "/")
+        || route.upstream.url.len() > 2048
+    {
+        return Err(Diagnostic::new(
+            "route.upstream",
+            "Upstream must be one HTTP(S) origin without query, fragment, or path rewriting",
+        ));
+    }
+    Ok(())
 }
 
 pub fn version(value: &str) -> Result<()> {

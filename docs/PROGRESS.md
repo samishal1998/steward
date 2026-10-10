@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-09 — read-only alpha and public documentation published.** Workspace:
+**Updated: 2026-10-10 — alpha.2 direct local HTTP route slice implemented.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -18,7 +18,7 @@ The documentation subtask performed source inspection and authored the handoff;
 it did not run tests. The implementation work below adds independently authored
 Rust code and fixtures. No live proxy/service configuration or Apptrail data was changed.
 
-## Implemented foundation
+## Read-only foundation — alpha.1 history
 
 - One Cargo package with internal config, model, transport, inventory, rule,
   plan, CLI and diagnostic modules. No Apptrail/Go/web runtime dependency.
@@ -175,10 +175,10 @@ immutable build artifacts; no tag movement or native rebuild is required.
 | Standalone Cargo/CLI modules | Implemented and locally checked | Maintainer: keep CLI/schema/README aligned and verify CI/MSRV |
 | Read-only inventory and route planning | Implemented initial Caddy/Traefik slice | Next: Docker/file qualified evidence and native binding detection; writes stay gated |
 | Synthetic fixture transfer | Independently authored in `fixtures/`, `src/tests.rs`, `tests/cli.rs` | No Apptrail production code/test files vendored |
-| Mutation foundation | Planned before adapter writes | Operation-engine owner: locks/journal/receipts/fingerprints/bounded executor and failure/recovery proof |
-| Plain Caddy compatibility | Unknown live behavior | Proxy owner: full authority/modules/import validation, activation/recovery and preservation spike |
+| Mutation foundation | Initial local HTTP path implemented and exercised | Next: broader authority/scope, historical journal and manifest apply; current bounded single-operation recovery is qualified below |
+| Plain Caddy compatibility | Local JSON/HTTP 2.11.7 slice exercised | Next: Caddyfile/import, broader modules/TLS and controller modes |
 | Caddy Docker refresh | Release-blocking unknown | Proxy owner: pinned base-only edit without Docker event; later events/restart/invalid content/recovery |
-| Traefik watched files | Release-blocking unknown | Proxy owner: pinned startup authority/mounts; atomic replace/final removal/provider diagnostics/coexistence |
+| Traefik watched files | Local HTTP directory 3.7.14 slice exercised | Next: container mounts, broader startup/TLS topologies and restart gates |
 | Native/container networking and TLS | Unknown per topology | Networking owner: proxy-context reachability/verification; do not assume local loopback on remote daemon |
 | Native Linux/macOS services | Full later milestone, not dropped | Native owner: on-target scope/lifecycle/log/KeepAlive/logout/reboot tests with non-skipped evidence |
 | Setup/install/TUI/composition | Full roadmap planned | Implementers: advance after dependencies; no required daemon/process supervisor |
@@ -194,3 +194,61 @@ recovery evidence; remaining gate; capability change. Mark skipped/unavailable
 execution explicitly. Pending commands in the plan/transfer are instructions,
 not passing results. The first read-only slice does not close route writes,
 setup, TUI, native services or composition milestones.
+
+## Alpha.2: direct commands, completion, agent docs and branding
+
+User requested shell completion, direct command interaction (explicitly **add and
+apply live**, not preview-only), simple use cases, published agent guidance, and
+selectable logo/brand variants. Cargo version is `0.1.0-alpha.2`.
+
+- Direct canonical `proxies`/`routes` groups keep singular aliases. `proxies add`
+  stores API-only inventory connections without a YAML profile, or explicit local
+  Caddy JSON/Traefik directory authority. Live HTTP route add/update/disable/enable/
+  remove uses persistent receipts, conservative conflicts, input/state kernel locks,
+  atomic and fsynced sources, complete Caddy candidate validation/conditional POST,
+  native activation and active-route HTTP checks. Generic manifest apply stays
+  unavailable. State/source is bounded at 1 MiB; one private operation journal is
+  retained up to 8 MiB, with receipts independent of history retention.
+- `operations list/recover` exposes phase/ID without private backups; interrupted
+  writes block new mutations and compensation is fingerprint-guarded. A rejected
+  write can report changed/uncertain effects instead of claiming no mutation.
+- `completions` generates Bash/Zsh/Fish/Elvish/PowerShell scripts from the actual
+  Clap command tree without loading configuration or initializing state.
+  `clap_complete` is the one new dependency; existing `tempfile` is promoted from
+  test-only to support same-filesystem durable staging. Rust MSRV remains 1.89.
+- Get started now walks API-only inventory, a disposable native Caddy HTTP app,
+  move/pause/remove commands, Traefik authority and recovery. A real native Caddy
+  example download is source-imported. `llms.txt` and `llms-full.txt` import the
+  repository index and full agent guide rather than duplicating instructions.
+- Brand selection harness: Waymark (abstract S/route), Gatehouse (gateway) and
+  Switchboard (literal connections), original monochrome SVGs, actual product
+  chrome/app-icon/small-size contexts, query-param and keyboard selection. No
+  brand direction has been promoted; selection remains the user's decision.
+
+### Local execution — Linux x86_64, Rust/Cargo 1.98.0
+
+| Command | Result / boundary |
+| --- | --- |
+| `cargo test --locked -j 1 -- --test-threads=1` | Passed 13 unit/mock tests + 9 CLI integration tests; 22 total |
+| `cargo clippy --locked -j 1 --all-targets -- -D warnings` / `cargo fmt --check` | Passed |
+| `cargo +1.89.0 check --locked -j 1` | Passed minimum-version build, including standard-library file locks |
+| `scripts/live_route_smoke.py --binary target/debug/steward --caddy PINNED_CADDY --traefik PINNED_TRAEFIK` | Passed both real native lifecycle suites on disposable loopback listeners, private temporary HOME/XDG/state and synthetic HTTP backends |
+| Native versions/provenance | Caddy 2.11.7 Linux amd64 archive verified against upstream SHA512 catalog; Traefik 3.7.14 Linux amd64 archive against upstream SHA256 catalog |
+| Earlier Caddy 2.6.2 check | Explicit authority rejection: no required root ETag; no route mutation enabled on that installation |
+| `python3 -B -m unittest discover -s scripts -p 'test_*.py'` / `sh -n install.sh` | Passed 9 installer contracts and shell syntax for the alpha.2 fallback |
+| `go run github.com/rhysd/actionlint/cmd/actionlint@latest .github/workflows/checks.yml .github/workflows/pages.yml .github/workflows/release.yml` | Passed workflow lint |
+| `scripts/fetch_test_proxies.py --dir /tmp/opencode/steward-proxy-fetch.OuJSjX` | Passed bounded downloads, executable-only extraction and both pinned upstream digest checks |
+| `npm run build --prefix site` / local headless browser harness | Passed 13-page Starlight build; 22 internal links, byte-exact installer/agent/example downloads, search/themes/mobile and all three logo candidates at 1440/420/320px with query/button/keyboard selection and SVG downloads |
+
+The native suites check API-only registration, all five completion scripts/Bash
+syntax, live add/update/pause/enable/remove, preserved path/query forwarding,
+receipt ownership/short-ID inspection, external host collision, manual input drift,
+state and input-scope contention, final Traefik aggregate removal, failed-backend
+compensation, killed-CLI recovery and Caddy stale-ETag rejection. Real proxies are
+foreground child processes stopped in `finally`; no host service or live user proxy
+is a test target. Linux/macOS CI runs the same non-skipped script with pinned native
+test artifacts. Platform/publication/browser evidence follows its actual runs.
+
+Remaining gates: broader Caddyfile/import/controller, mapped-container/TLS/setup,
+native services, full journal history, manifest apply and TUI. These changes do not
+close the complete proxy-management roadmap milestone.

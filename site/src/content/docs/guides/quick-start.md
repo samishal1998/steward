@@ -1,69 +1,100 @@
 ---
-title: Your first inventory
-description: Try Steward offline, inspect your proxy, and preview a route without changing infrastructure.
+title: Get started
+description: Inspect an existing proxy, put a local app behind a hostname, and change routes with CLI commands.
 ---
 
-## 1. Install the CLI
+Install [Steward](../installation/) and check `steward --version`. These direct commands require **v0.1.0-alpha.2**. Add your local bin directory to `PATH`, or replace `steward` below with `~/.local/bin/steward`.
 
-Follow [installation](../installation/), then check:
+## 1. See what your proxy is serving
 
-```sh
-~/.local/bin/steward --help
-```
-
-The current alpha performs reads and route previews. `apply` explicitly returns an unavailable-capability error.
-
-## 2. Try synthetic inputs offline
-
-Create a small example directory and download the profile and its two snapshots:
+Connect an already authorized API once. You do not need a Steward YAML profile:
 
 ```sh
-mkdir -p examples fixtures/traefik fixtures/caddy
-curl -fsSL https://samishal1998.github.io/steward/downloads/examples/read-only.yaml -o examples/read-only.yaml
-curl -fsSL https://samishal1998.github.io/steward/downloads/fixtures/traefik/snapshot.json -o fixtures/traefik/snapshot.json
-curl -fsSL https://samishal1998.github.io/steward/downloads/fixtures/caddy/snapshot.json -o fixtures/caddy/snapshot.json
+steward proxies add edge --engine traefik --endpoint http://127.0.0.1:8080
+steward proxies list
+steward routes list
+steward routes inspect photos@file --proxy edge
 ```
+
+For Caddy, use `--engine caddy` and its actual admin endpoint. API-only connections are inventory-only: they do not grant permission to change files or configure the proxy. `photos@file` is an example; use the native ID shown by your own route list.
+
+Steward remembers connections in your private state directory. `--state-dir /absolute/path` or `STEWARD_STATE_DIR` selects a separate workspace.
+
+## 2. Put a local app behind a hostname
+
+This example uses a **local HTTP-only Caddy server** and an application already listening on `127.0.0.1:3000`. It needs an existing Caddy executable with conditional configuration updates; the live checks use Caddy **2.11.7**.
+
+For a disposable demo, download the small native Caddy configuration:
 
 ```sh
-~/.local/bin/steward --config examples/read-only.yaml proxy list --json
-~/.local/bin/steward --config examples/read-only.yaml route list --json
+curl -fsSL https://samishal1998.github.io/steward/downloads/examples/caddy-http.json -o caddy-http.json
+caddy run --config "$PWD/caddy-http.json"
 ```
 
-These files are synthetic, not your machine’s inventory. The profile reads `snapshot_file` inputs, makes no network requests, and reports `runtime_confirmed: false`. Snapshot paths resolve relative to the profile file.
-
-The example includes Traefik hostname aliases on one native router, a disabled Docker-origin router, a Caddy nested reverse proxy, and a Caddy route with unfamiliar behavior. Unknown coverage stays visible.
-
-## 3. Connect an already authorized proxy API
-
-Create `edge.yaml` for your own Traefik API:
-
-```yaml
-schema_version: "1"
-scope: user
-proxies:
-  - id: edge
-    engine: traefik
-    endpoint: http://127.0.0.1:8080
-```
+Keep Caddy running. In another terminal, start your app. A simple static example is:
 
 ```sh
-~/.local/bin/steward --config edge.yaml proxy inspect edge --json
-~/.local/bin/steward --config edge.yaml route list --json
+python3 -m http.server 3000 --bind 127.0.0.1
 ```
 
-Use the actual protected API base URL for your deployment. `127.0.0.1` belongs to the calling process’s network namespace. A proxy in another container needs reachable, explicitly configured access. Steward does not enable APIs or grant access automatically.
-
-For Caddy, use `engine: caddy` and its configured admin endpoint. See [proxy connections](../connections/) for paths and authentication.
-
-## 4. Preview route intent
-
-Download the route-only example:
+In a third terminal, connect the existing proxy with explicit file authority, then add the route:
 
 ```sh
-curl -fsSL https://samishal1998.github.io/steward/downloads/examples/routes-only.yaml -o examples/routes-only.yaml
-~/.local/bin/steward --config examples/read-only.yaml plan --file examples/routes-only.yaml --json
+steward proxies add local --engine caddy \
+  --endpoint http://127.0.0.1:22019 \
+  --config-file "$PWD/caddy-http.json" --listener web
+
+steward routes add app --proxy local \
+  --host app.localhost --upstream http://127.0.0.1:3000 --tls http
+
+curl --resolve app.localhost:8088:127.0.0.1 http://app.localhost:8088/
 ```
 
-The result contains proposed actions, source fingerprints, overlap diagnostics, and missing prerequisites. It always says `applicable: false` in this alpha. Nothing is written, reloaded, started, or stopped.
+**`routes add` makes a live change.** Steward validates the full candidate, records a recoverable operation, publishes the source atomically, activates it, and verifies the native route plus an HTTP request through the proxy. No route-intent YAML or separate `apply` command is needed. The upstream root path must return HTTP 2xx/3xx for verification.
 
-Planning from a saved snapshot cannot establish current conflict absence. [Learn the planning boundary](../planning/) before interpreting the preview as operational authority.
+For your existing JSON-based Caddy server, use its actual startup file, server name, and endpoint. This initial write mode requires one local HTTP listener and `automatic_https.disable: true`. Caddyfile imports, TLS setup, Docker controllers, and remote/container file mappings retain their own roadmap gates.
+
+## 3. Move, pause, or remove your app
+
+Start the replacement app on port 4000 before changing the upstream:
+
+```sh
+steward routes update app --proxy local --upstream http://127.0.0.1:4000
+steward routes inspect app --proxy local
+steward routes disable app --proxy local
+steward routes enable app --proxy local
+steward routes remove app --proxy local
+```
+
+These commands change only routes created by this Steward state directory. Existing external routes keep their native identity and remain external. A matching name or hostname is not an ownership receipt.
+
+## 4. Use a Traefik watched directory
+
+For an already running local Traefik whose static startup file enables this exact watched directory and HTTP entrypoint:
+
+```sh
+steward proxies add local-traefik --engine traefik \
+  --endpoint http://127.0.0.1:8080 \
+  --config-file "$HOME/.config/traefik/traefik.yaml" \
+  --directory "$HOME/.config/traefik/dynamic" --listener web
+
+steward routes add app --proxy local-traefik \
+  --host app.localhost --upstream http://127.0.0.1:3000 --tls http
+```
+
+Steward uses its own aggregate file and leaves other provider files alone. It waits for native router/service activation and checks routing through the selected entrypoint. Removing the final enabled route removes the owned aggregate file. The live checks use Traefik **3.7.14**.
+
+## If a change is interrupted
+
+```sh
+steward operations list --json
+steward operations recover OPERATION_ID --json
+```
+
+A failed activation is compensated when the published input and runtime still match the operation. An interrupted or drifted operation blocks further writes. `recover` compensates an unfinished operation; it does not undo an already verified operation. Inspect the diagnostic and operation ID before retrying.
+
+## Try offline output instead
+
+The [saved-response examples](../planning/) still work with `--config` and `plan --file`. Those are read-only previews and always return `applicable: false`.
+
+Next: [shell completion](../completion/) · [CLI reference](../../reference/cli/) · [agent guide](../agents/).

@@ -1,0 +1,14 @@
+{
+  "admin": { "listen": "127.0.0.1:22019" },
+  "apps": {
+    "http": {
+      "servers": {
+        "web": {
+          "listen": ["127.0.0.1:8088"],
+          "automatic_https": { "disable": true },
+          "routes": []
+        }
+      }
+    }
+  }
+}

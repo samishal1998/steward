@@ -1,7 +1,8 @@
 # Steward capabilities and evidence
 
-**Updated: 2026-10-09.** The first read-only Rust slice is implemented and tested
-on the development Linux x86_64 host. It is not the proxy-management release.
+**Updated: 2026-10-10.** The direct-command HTTP slice is implemented and exercised
+with disposable local Caddy 2.11.7 and Traefik 3.7.14 on Linux x86_64. This is an
+alpha extension, not completion of every proxy-management mode.
 Consult [actual CLI contracts](CLI_CONTRACT.md) and [execution evidence](PROGRESS.md).
 
 Statuses: **verified from code** = AppTrail baseline/static source; **prior CI** =
@@ -17,21 +18,22 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | Standalone Rust repository | Approved decision; local workspace and public repo supplied | Accepted; one Cargo package/internal modules; no shared production code |
 | Read-only inventory and route planning | Rust model/config/readers/planner and CLI tests | Implemented; deterministic non-applicable previews, versioned JSON errors and partial results |
 | Caddy current JSON inspection | Steward `/config/` synthetic and mock transport tests | Implemented with native references and partial matcher/handler diagnostics; no live engine certification |
-| Plain Caddy owned-file route writes | Official input/API docs, no AppTrail write adapter | Unknown live compatibility; full authority/validation/recovery gates before apply |
+| Plain Caddy JSON route writes | Live add/update/disable/enable/remove, full candidate validation, root ETag concurrency, external preservation, compensation and interruption tests | Initial same-host HTTP JSON mode implemented; Caddyfile/import/TLS/controller modes retain their gates |
 | Caddy Docker controller managed-base writes | v2.13.1, commit `2434d713b4906d12f3379ecb8a584e0ef97e6039`: base read + timer/generated-byte comparison verified upstream source | Live file-only activation, events/restart and external-route preservation unverified; release gate |
 | Unfamiliar Caddy Docker plugin inspection | Effective output may use understood native structures | Conditional planned read coverage only; no management certification |
 | Traefik current API inspection | Steward three-endpoint mock tests and native snapshots | Implemented; native status/qualified identities, aliases not merged; no `/api/rawdata` or engine certification |
-| Traefik watched-file writes | Official directory/watch model; no AppTrail writer | Unknown pinned-version/mount activation; atomic replace/final removal/coexistence gates |
+| Traefik watched-directory writes | Live 3.7.14 native activation, atomic aggregate replacement/final deletion, external-file preservation, failed activation and interrupted recovery | Initial same-host HTTP mode implemented; container mount/restart/TLS variants retain their gates |
 | Docker explicit endpoint/known labels | AppTrail v1.44 container list and Traefik labels verified from code | Planned read-only; no context negotiation or write authority implied |
 | Baseline Caddy Docker labels | Not implemented in AppTrail | Planned built-in read-only reader; not removed from product scope |
 | Custom label mappings | Accepted discovery addendum | Deferred; no mapping language/editor/plugin framework in first release |
-| Exact-host one-upstream routes | Route-only manifest validation and conservative conflict tests | Read-only preview implemented; all writes remain unavailable |
-| Ownership, journal, crash recovery | Required design; AppTrail marker-only lifecycle insufficient | Planned mandatory foundation before production writes |
+| Exact-host one-upstream routes | Manifest validation, direct command lifecycle and conservative conflict tests | Direct local HTTP writes plus read-only manifest preview implemented |
+| Ownership, journal, crash recovery | Kernel state/input locks, private durable journal, template receipts, source/native checks and live interrupted recovery | Initial bounded single-operation path implemented; historical journal, broader scopes and manifest apply remain later work |
 | Explicit install/setup/upgrade/uninstall | Required product scope | Planned; no automatic discovery-triggered setup; preserve certificates/user data |
 | Linux general native services | AppTrail fixed self-service code exists, not general service API | Planned later systemd user/system support; live scope/lifecycle tests required |
 | macOS general native services | Fixed AppTrail LaunchAgent code and skip-capable smoke script | Planned later launchd support; native logs unavailable in audit, no execution claim |
 | Independent service-only operation | CLI test invokes unavailable service path with deliberately invalid config | Placeholder initializes no proxy/Docker; general service capability remains planned |
-| CLI/TUI and composition | CLI input/result implementation plus full roadmap | Read-only CLI implemented; TUI, services and composition planned |
+| CLI/TUI and composition | Direct route/proxy/operation commands, stored API connections and shell completion | CLI slice implemented; TUI, services and composition planned |
+| Agent guidance and branding | Source-imported llms.txt/full guide and selectable SVG concept harness | Public endpoints/site checks form the publication gate; brand selection remains the user's choice |
 | AppTrail Stage 0 discovery | Existing Caddy/Traefik read boundaries verified from code | Requires no new provider in principle; live resulting-route identity test pending |
 | AppTrail versioned export/import/control | No file-inventory provider or service-control endpoint at baseline | Later new code/contracts; no shared DB/credentials |
 | Nginx/additional native/platform adapters | Later product scope | Deferred; Apache excluded; Windows later |
@@ -43,10 +45,10 @@ See [transfer](APPTRAIL_TECHNICAL_TRANSFER.md),
 | AppTrail | `main` `2a3ac36bed33aca03645d45f5612ad0e02c384ed`; Go 1.26.8 | Transfer baseline only, not a Steward runtime dependency |
 | AppTrail CI | Checks run [35741675602](https://github.com/samishal1998/apptrail/actions/runs/35741675602) successful | Prior CI; macOS native logs unavailable; green skip-capable job does not prove lifecycle execution |
 | Docker | API v1.44 request hardcoded in baseline | Engine 25+ source intent; no new live daemon test/older negotiation proof |
-| Caddy | Partial Caddy v2-shaped JSON source/fixtures | Exact supported engine/modules/install modes not certified |
+| Caddy | Live native 2.11.7 local JSON/HTTP tests; installed 2.6.2 lacked the required ETag | Conditional config API required; not a universal module/controller/TLS certification |
 | caddy-docker-proxy | v2.13.1 pinned upstream source | Source inspection, not live activation compatibility |
-| Traefik | Diagnostic HTTP arrays + literal rule fixtures | Exact engine version/rule syntax support still to pin and exercise |
-| Steward Linux x86_64 | Rust 1.98.0 local tests/build | Read-only fixture/mock execution verified; live proxy/service compatibility pending |
+| Traefik | Live native 3.7.14 watched directory and literal Host rule tests | Local HTTP native topology exercised; container mapping/TLS acceptance pending |
+| Steward Linux x86_64 | Rust 1.98.0 local tests/build and real local proxy lifecycle | Initial local HTTP write/recovery slice exercised; general services remain pending |
 | Steward Linux arm64 | Planned release target | Build and native/topology execution gates pending |
 | Steward macOS CI host | Rust 1.98 fixture/mock/CLI tests, formatting and Clippy passed in run 37978578690 | Read-only slice verified on hosted macOS; live proxy and native-manager gates pending |
 | Steward macOS arm64/x86_64 distribution | Planned release targets | Installer and complete on-target proxy/service acceptance still pending |

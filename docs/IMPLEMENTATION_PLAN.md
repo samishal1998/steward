@@ -35,6 +35,15 @@ and [effective-discovery addendum](planning/08_DISCOVERY_ADDENDUM.md).
 
 ## 2. First runnable vertical slice: inventory and route planning
 
+**Alpha.2 update:** direct `proxies`/`routes` commands now store explicit connections
+and implement owned local HTTP route writes on complete Caddy JSON startup inputs
+or Traefik watched directories. State/input locks, receipts, bounded private journal,
+native/routing verification, compensation and interrupted recovery are exercised in
+disposable Caddy 2.11.7/Traefik 3.7.14 processes. Shell completion and agent docs are
+included. The read-only manifest slice below is retained; broader file/import,
+controller, mount, TLS/setup, services and TUI gates remain open. See the current
+[CLI contract](CLI_CONTRACT.md), [agent guide](AGENT_GUIDE.md) and progress record.
+
 **Initial Caddy/Traefik portion implemented; read-only.** Actual commands and schemas
 are in [CLI_CONTRACT.md](CLI_CONTRACT.md). Synthetic fixture/mock/CLI tests are
 recorded in progress. Docker/known-label/file evidence, native binding detection,

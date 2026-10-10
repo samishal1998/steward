@@ -1,8 +1,59 @@
 # Implemented CLI contract — schema v1
 
-This document describes the current **read-only** implementation, not the archived
-future command grammar. All infrastructure mutation and native service management
-commands remain unavailable.
+This document describes the current alpha.2 implementation, not the archived
+future command grammar. Direct local HTTP route writes are available through
+stored explicit authority; manifest apply and native services remain unavailable.
+
+## Direct commands, authority and recovery
+
+Canonical groups are `proxies`, `routes`, `operations`, and `completions`; singular
+`proxy`/`route` remain aliases. Without `--config`, inventory uses stored connections:
+`proxies add ID --engine caddy|traefik --endpoint URL [--auth-file ABSOLUTE_FILE]`.
+API-only connections remain read-only and can use remote or Unix endpoints.
+
+Writable connections additionally declare `--config-file ABSOLUTE_FILE` and
+`--listener NAME`. Caddy uses the complete JSON startup source and a same-environment
+validator (`--caddy-bin`, default PATH `caddy`); source/native equality and ETags
+are required. Traefik adds `--directory ABSOLUTE_DIRECTORY`, whose exact path and
+watch setting must appear in the static startup source. Writable APIs are local
+loopback only; HTTP frontends are explicit and TLS/setup/controller modes remain
+gated. Native compatibility tests use Caddy 2.11.7 and Traefik 3.7.14.
+
+```sh
+steward routes add ID --proxy PROXY --host HOST --upstream URL --tls http
+steward routes update ID --proxy PROXY --host HOST
+steward routes update ID --proxy PROXY --upstream URL
+steward routes disable ID --proxy PROXY
+steward routes enable ID --proxy PROXY
+steward routes remove ID --proxy PROXY
+steward operations list --json
+steward operations recover OPERATION_ID --json
+steward completions bash
+```
+
+These route commands apply immediately; they do not require intent YAML or generic
+`apply`. They reject `--config` overrides and never adopt external routes by name.
+Mutations verify receipt-owned native definitions, conservative listener/host
+conflicts, candidate validation, source/native fingerprints, atomic publication,
+native activation and active routes' HTTP 2xx/3xx root responses. State/input
+scope locks coordinate Steward writers, including distinct state workspaces using
+one authoritative input. Human external writes must not race publication; observed
+drift blocks writes/recovery. Symlink and hard-linked inputs are rejected.
+
+State defaults to `$XDG_STATE_HOME/steward` or `~/.local/state/steward`; explicit
+`--state-dir` wins over `STEWARD_STATE_DIR`. Existing state directories must be
+private. Limits: 16 connections, 128 receipts, 1 MiB state/source inputs, one
+retained operation up to 8 MiB. Receipt state survives terminal journal replacement.
+Caddy validation has a 15-second deadline; active-route probing has a 15-second
+aggregate deadline with at most four seconds per request. Native polling has a
+10-second observation window; individual bounded API reads can extend a final poll.
+
+Prepared/publishing/published/activation-pending operations are durable before
+their next effect. An interrupted operation blocks new writes. Recovery compensates
+only unfinished inputs/runtime while fingerprints match; verified/compensated
+operations are terminal, not generic undo. Full backups stay in private state.
+`operation.recovery_required` can report `changed: true`; inspect the diagnostic
+and ID rather than interpreting every nonzero exit as effect-free.
 
 ## Binding profile
 
@@ -117,8 +168,8 @@ hostname spelling and raw configuration are retained separately.
 requested-host collisions, existing exact/wildcard/catch-all/uncertain overlaps,
 offline evidence, and partial coverage. It records input/binding/native-source
 fingerprints. Disabled external definitions are conservatively considered reserved.
-There is no ownership store, source-authority detection, journal, or mutation
-eligibility. The result always has `applicable: false` and explains the missing
+This legacy manifest path does not use the managed receipt/operation path or infer
+source authority. Its result always has `applicable: false` and explains the missing
 apply/setup capabilities. Identical inputs/snapshots produce identical plan data.
 
 ## Results
@@ -135,13 +186,16 @@ Every JSON command emits one object:
 }
 ```
 
-Statuses: `observed`, `partial`, `planned_read_only`, `rejected`. Diagnostics use
+Statuses: `observed`, `partial`, `planned_read_only`, `connected`, `applied`,
+`compensated`, `rejected`. Diagnostics use
 stable scoped codes plus a message and optional resource reference. Strings are
 escaped in JSON; human error output escapes terminal control characters. Exit 0
-means a read/preview completed, exit 2 means rejection, exit 1 means output failure.
-Help/version bypass configuration/network access. CLI usage errors in JSON mode
-also use the envelope. A result is not an operation receipt and changes are not
-authorized by `--yes`.
+means the command completed, exit 2 means rejection/failed or unresolved activation,
+exit 1 means output failure. Reads/previews report `changed: false`; successful
+managed writes include an operation receipt/verification. Routing verification is
+null when no enabled owned route needed an HTTP probe. Help/version/completion bypass
+configuration/state/network initialization; completion emits shell code, not JSON.
+CLI usage errors in JSON mode also use the envelope. `--yes` cannot override
+authority, ownership, drift or capability gates.
 
-Schema evolution and the full management result/receipt contracts will be frozen
-at the compatibility/operation-engine milestones before enabling writes.
+Broader manifest/setup/native-service management contracts remain future milestones.
