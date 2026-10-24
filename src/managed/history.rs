@@ -151,6 +151,11 @@ impl Store {
                 "Runtime no longer matches the operation being reversed",
             ));
         }
+        check_conflicts(
+            &original.connection,
+            &self.book,
+            &own(&original.old, &original.connection.binding.id),
+        )?;
         let operation = fingerprint(&(
             id,
             transport::now(),
@@ -185,6 +190,11 @@ impl Store {
         }
         self.record(&reverse)?;
         if let Err(e) = self.execute(&mut reverse) {
+            if reverse.phase == "prepared" {
+                reverse.phase = "compensated".into();
+                self.record(&reverse)?;
+                return Err(e.at(reverse.id));
+            }
             if self.compensate(&mut reverse).is_ok() {
                 return Err(error(
                     "operation.compensated",

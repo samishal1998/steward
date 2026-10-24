@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from live_route_smoke import port,request
+from live_route_smoke import port,request,wait
 
 def exercise(binary):
     with tempfile.TemporaryDirectory(prefix='steward-stack-',dir=os.environ.get('TMPDIR')) as folder:
@@ -30,13 +30,38 @@ def exercise(binary):
             assert any(r['kind']=='service' and r['public_url'] is None for r in export['resources'])
             assert any(r['kind']=='route' and r['public_url']==f'http://app.localhost:{web}' for r in export['resources'])
             cli('down','demo');assert cli('services','inspect','webapp')['data']['running'] is True
+            cli('services','stop','proxy-edge')
+            assert cli('proxies','upgrade','edge','--version','2.11.7')['data']['running'] is False
+            assert cli('services','inspect','proxy-edge')['data']['running'] is False
+            cli('services','start','proxy-edge')
             cli('up','--file',str(stack));assert request(f'http://127.0.0.1:{web}/','app.localhost')[0]
             cli('down','demo','--remove-services');assert not any(s['id']=='webapp' for s in cli('services','list')['data'])
+            interrupted=root/'interrupted.json'
+            slow={**spec,'id':'interrupted','args':['-m','http.server',str(port()),'--bind','127.0.0.1'],'ready_url':'http://127.0.0.1:1/'}
+            interrupted.write_text(json.dumps({'schema_version':'1','id':'interrupted','scope':'user','services':[slow],'routes':[]}))
+            child=subprocess.Popen(prefix+['up','--file',str(interrupted),'--json'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            try:
+                def native_started():
+                    receipt=json.loads((state/'stacks/interrupted.json').read_text())
+                    pending=receipt.get('pending_service')
+                    if not pending:return False
+                    operation=json.loads((state/'service-operation.json').read_text())
+                    if operation['id']!=pending[1] or operation['phase']!='publishing':return False
+                    result=subprocess.run(prefix+['services','inspect-native',operation['record']['label'],'--json'],capture_output=True,timeout=10)
+                    if result.returncode:return False
+                    fields=json.loads(result.stdout)['data']['native']
+                    return fields.get('ActiveState')=='active' or fields.get('state')=='running'
+                wait(native_started)
+                child.terminate();child.wait(timeout=10)
+            finally:
+                if child.poll() is None:child.kill();child.wait(timeout=5)
+            cli('services','recover');cli('down','interrupted','--remove-services')
+            assert not any(s['id']=='interrupted' for s in cli('services','list')['data'])
             cli('proxies','uninstall','edge');assert (state/'proxies/edge/proxy.json').exists()
             assert not (state/'proxies/edge/caddy').exists()
             print('Proxy install/upgrade/uninstall, native startup/readiness, service-first up, route-first down and redacted export passed.')
         finally:
-            for args in [('down','demo','--remove-services'),('routes','remove','app','--proxy','edge'),('services','recover'),('services','remove','webapp'),('proxies','recover','edge'),('proxies','uninstall','edge'),('services','remove','proxy-edge')]:
+            for args in [('services','recover'),('down','interrupted','--remove-services'),('services','remove','interrupted'),('down','demo','--remove-services'),('routes','remove','app','--proxy','edge'),('services','remove','webapp'),('proxies','recover','edge'),('proxies','uninstall','edge'),('services','remove','proxy-edge')]:
                 subprocess.run(prefix+list(args)+['--json'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=90)
 
 if __name__=='__main__':

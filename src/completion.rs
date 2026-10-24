@@ -5,6 +5,14 @@ use std::{ffi::OsStr, path::PathBuf};
 
 fn book() -> Option<managed::Book> {
     let args: Vec<_> = std::env::args_os().take(256).collect();
+    if args.iter().any(|a| {
+        a == "--ssh"
+            || a == "--container"
+            || a.to_str()
+                .is_some_and(|a| a.starts_with("--ssh=") || a.starts_with("--container="))
+    }) {
+        return None;
+    }
     let explicit = args
         .windows(2)
         .rev()

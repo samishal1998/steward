@@ -34,6 +34,8 @@ pub struct Spec {
     #[serde(default)]
     pub restart: bool,
     pub ready_url: Option<String>,
+    #[serde(default = "default_ready_timeout")]
+    pub ready_timeout: u16,
 }
 
 #[derive(Args)]
@@ -53,6 +55,8 @@ pub struct ServiceArgs {
     pub restart: bool,
     #[arg(long)]
     pub ready_url: Option<String>,
+    #[arg(long,default_value="30",value_parser=clap::value_parser!(u16).range(1..=300))]
+    pub ready_timeout: u16,
     #[arg(long)]
     pub start: bool,
     #[arg(last = true)]
@@ -115,6 +119,8 @@ struct Record {
 }
 #[derive(Default, Clone, Deserialize, Serialize)]
 struct Registry {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    revision: String,
     #[serde(default)]
     services: Vec<Record>,
 }
@@ -140,6 +146,10 @@ struct Journal {
 
 fn error(code: &str, message: &str) -> Diagnostic {
     Diagnostic::new(code, message)
+}
+
+fn default_ready_timeout() -> u16 {
+    30
 }
 fn io_error(_: std::io::Error) -> Diagnostic {
     error(
@@ -187,12 +197,19 @@ pub fn spec(args: &ServiceArgs) -> Result<Spec> {
         enabled: args.enabled,
         restart: args.restart,
         ready_url: args.ready_url.clone(),
+        ready_timeout: args.ready_timeout,
     };
     validate(&spec)?;
     Ok(spec)
 }
 
 pub fn validate(spec: &Spec) -> Result<()> {
+    if !(1..=300).contains(&spec.ready_timeout) {
+        return Err(error(
+            "service.readiness",
+            "Readiness timeout must be between 1 and 300 seconds",
+        ));
+    }
     config::resource_id(&spec.id)?;
     if !spec.executable.is_absolute()
         || !spec.executable.is_file()
@@ -539,7 +556,7 @@ fn control(record: &Record, action: &str) -> Result<()> {
 }
 
 fn verify_running(record: &Record, expected: bool) -> Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(u64::from(record.spec.ready_timeout));
     while running(record)? != expected {
         if Instant::now() > deadline {
             return Err(error(
@@ -799,7 +816,7 @@ fn native_inventory(scope: Scope, name: Option<&str>) -> Result<Value> {
                     "Native service inspection failed",
                 ));
             }
-            let fields = String::from_utf8_lossy(&result.stdout)
+            let mut fields = String::from_utf8_lossy(&result.stdout)
                 .lines()
                 .filter_map(|line| {
                     let (k, v) = line.trim().split_once(" = ")?;
@@ -809,7 +826,24 @@ fn native_inventory(scope: Scope, name: Option<&str>) -> Result<Value> {
                         None
                     }
                 })
-                .collect::<BTreeMap<_, _>>();
+                .fold(BTreeMap::new(), |mut fields, (key, value)| {
+                    fields.entry(key).or_insert(value);
+                    fields
+                });
+            if let Some(pid) = fields
+                .get("pid")
+                .filter(|p| p.bytes().all(|b| b.is_ascii_digit()))
+                && let Ok(process) = executor::run(
+                    Command::new("ps").args(["-p", pid, "-o", "comm=,state="]),
+                    Duration::from_secs(5),
+                    4096,
+                )
+            {
+                fields.insert(
+                    "process".into(),
+                    String::from_utf8_lossy(&process.stdout).trim().into(),
+                );
+            }
             Ok(json!({"name":name,"native":fields,"ownership":"external","scope":scope}))
         } else {
             let result = executor::run(
@@ -1082,6 +1116,7 @@ fn run_internal(
         after_enabled: None,
         reverses: None,
     };
+    journal.next.revision = journal.id.clone();
     if serialize(&journal.next)?.len() > config::MAX_CONFIG
         || journal
             .after

@@ -76,6 +76,8 @@ pub struct Receipt {
 #[serde(deny_unknown_fields)]
 pub struct Book {
     pub schema_version: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub revision: String,
     pub owner: String,
     pub connections: Vec<Connection>,
     pub routes: Vec<Receipt>,
@@ -358,6 +360,7 @@ impl Store {
             ));
             Book {
                 schema_version: "1".into(),
+                revision: String::new(),
                 owner: owner[..16].into(),
                 connections: Vec::new(),
                 routes: Vec::new(),
@@ -462,6 +465,7 @@ impl Store {
         }
         self.validate_connection(&connection)?;
         let mut book = self.book.clone();
+        book.revision = new_revision();
         book.connections.push(connection);
         self.save(&book)?;
         self.book = book;
@@ -535,6 +539,7 @@ impl Store {
         }
         self.validate_connection(&connection)?;
         let mut next = self.book.clone();
+        next.revision = new_revision();
         next.connections[index] = connection.clone();
         self.save(&next)?;
         self.book = next;
@@ -559,6 +564,7 @@ impl Store {
             ));
         }
         let mut next = self.book.clone();
+        next.revision = new_revision();
         next.connections.retain(|c| c.binding.id != id);
         next.routes.retain(|r| r.spec.proxy != id);
         self.save(&next)?;
@@ -740,7 +746,14 @@ fn listener(address: &str) -> Result<String> {
             "Writable mode requires a reachable same-host listener",
         ));
     }
-    Ok(format!("http://127.0.0.1:{port}"))
+    Ok(format!(
+        "http://{}:{port}",
+        if matches!(host, "[::1]" | "[::]") {
+            "[::1]"
+        } else {
+            "127.0.0.1"
+        }
+    ))
 }
 
 pub(crate) fn public_url(connection: &Connection, spec: &RouteSpec) -> Result<String> {
@@ -1196,6 +1209,12 @@ fn wait_native(connection: &Connection, book: &Book, source: Option<&str>) -> Re
 
 fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
     let base = authority(connection)?;
+    let address = config::http_url(&base)?
+        .host_str()
+        .unwrap_or("")
+        .trim_matches(['[', ']'])
+        .parse::<std::net::IpAddr>()
+        .map_err(|_| error("verification.address", "Invalid local verification address"))?;
     let port = config::http_url(&base)?
         .port()
         .ok_or_else(|| error("verification.port", "Missing listener port"))?;
@@ -1209,7 +1228,7 @@ fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
             .timeout(Duration::from_secs(4))
             .resolve(
                 &receipt.spec.hostname,
-                std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+                std::net::SocketAddr::new(address, port),
             );
         if tls && let Some(ca) = connection.tls.as_ref().and_then(|t| t.ca_file.as_ref()) {
             let cert = reqwest::Certificate::from_pem(&config::read_bounded(ca, 128 * 1024)?)
@@ -1436,6 +1455,7 @@ impl Store {
                 .as_nanos(),
             std::process::id(),
         ));
+        desired.revision = operation[..16].into();
         let journal = Journal {
             schema_version: "1".into(),
             id: operation[..16].into(),
@@ -1609,6 +1629,17 @@ impl Store {
         self.book = journal.old;
         Ok(json!({"operation":id,"phase":"compensated"}))
     }
+}
+
+pub(crate) fn new_revision() -> String {
+    fingerprint(&(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos(),
+        std::process::id(),
+    ))[..16]
+        .into()
 }
 
 fn journal_native(journal: &Journal, after: bool) -> Result<Value> {

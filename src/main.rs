@@ -916,6 +916,21 @@ fn main() -> ExitCode {
     clap_complete::CompleteEnv::with_factory(completion::command)
         .var("STEWARD_COMPLETE")
         .complete();
+    match remote::dispatch() {
+        Ok(Some(code)) => return code,
+        Ok(None) => {}
+        Err(error) => {
+            let envelope = Envelope {
+                schema_version: "1",
+                status: "rejected",
+                changed: error.changed,
+                data: Value::Null,
+                diagnostics: vec![error],
+            };
+            let _ = output(&envelope, std::env::args().any(|a| a == "--json"));
+            return ExitCode::from(2);
+        }
+    }
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(error) => {
@@ -944,22 +959,21 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match remote::dispatch(&cli) {
-        Ok(Some(code)) => return code,
-        Ok(None) => {}
-        Err(error) => {
+    if matches!(cli.command, Some(Command::Tui)) {
+        if cli.json || cli.config.is_some() {
             let envelope = Envelope {
                 schema_version: "1",
                 status: "rejected",
-                changed: error.changed,
+                changed: false,
                 data: Value::Null,
-                diagnostics: vec![error],
+                diagnostics: vec![Diagnostic::new(
+                    "cli.interactive",
+                    "The TUI uses stored connections and an interactive terminal; omit --json/--config",
+                )],
             };
             let _ = output(&envelope, cli.json);
             return ExitCode::from(2);
         }
-    }
-    if matches!(cli.command, Some(Command::Tui)) {
         return match tui::start(cli.state_dir.clone()) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {

@@ -20,6 +20,40 @@ pub fn fingerprint(value: &impl serde::Serialize) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+pub fn executable_fingerprint(path: &Path) -> Result<String> {
+    let mut file = std::fs::File::open(path)
+        .map_err(|_| Diagnostic::new("input.executable", "Cannot read selected executable"))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| Diagnostic::new("input.executable", "Cannot inspect selected executable"))?;
+    if !metadata.is_file() || metadata.len() > 256 * 1024 * 1024 {
+        return Err(Diagnostic::new(
+            "input.executable",
+            "Executable must be a regular file of at most 256 MiB",
+        ));
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0; 65536];
+    let mut total = 0;
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|_| Diagnostic::new("input.executable", "Cannot fingerprint executable"))?;
+        if n == 0 {
+            break;
+        }
+        total += n;
+        if total > 256 * 1024 * 1024 {
+            return Err(Diagnostic::new(
+                "input.executable",
+                "Executable grew past its fingerprint budget",
+            ));
+        }
+        hash.update(&buffer[..n]);
+    }
+    Ok(format!("{:x}", hash.finalize()))
+}
+
 pub fn now() -> String {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

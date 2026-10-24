@@ -67,6 +67,9 @@ struct Upgrade {
     after_digest: String,
     backup: PathBuf,
     phase: String,
+    was_running: bool,
+    source_digest: String,
+    state_digest: String,
 }
 
 fn error(code: &str, message: &str) -> Diagnostic {
@@ -288,6 +291,9 @@ fn artifact(engine: Engine, version: &str, destination: &Path) -> Result<()> {
     if destination.exists() {
         return Err(error("setup.exists", "Destination binary already exists"));
     }
+    File::open(&binary)
+        .and_then(|f| f.sync_all())
+        .map_err(io_error)?;
     fs::rename(binary, destination).map_err(io_error)?;
     File::open(parent)
         .and_then(|f| f.sync_all())
@@ -295,6 +301,12 @@ fn artifact(engine: Engine, version: &str, destination: &Path) -> Result<()> {
 }
 
 pub fn setup(root: PathBuf, args: &SetupArgs, install: bool) -> Result<Value> {
+    if args.scope == Scope::System && unsafe { libc::geteuid() } != 0 {
+        return Err(error(
+            "setup.privilege",
+            "System proxy setup requires an explicitly elevated invocation",
+        ));
+    }
     let _guard = lifecycle_lock(&root, &args.id)?;
     config::resource_id(&args.id)?;
     let listen: std::net::SocketAddr = args
@@ -428,6 +440,7 @@ pub fn setup(root: PathBuf, args: &SetupArgs, install: bool) -> Result<Value> {
         ),
     ]);
     let service = Spec {
+        ready_timeout: 30,
         id: format!("proxy-{}", args.id),
         scope: args.scope,
         executable: binary.clone(),
@@ -513,9 +526,44 @@ fn installation(root: &Path, id: &str) -> Result<(PathBuf, Installation)> {
     Ok((directory, record))
 }
 
+fn check_installation(root: &Path, record: &Installation) -> Result<String> {
+    let store = Store::open(root.to_path_buf())?;
+    if store.book.connections.iter().any(|c| {
+        c.binding.id == record.id
+            && crate::transport::fingerprint(c) != crate::transport::fingerprint(&record.connection)
+    }) {
+        return Err(error(
+            "setup.drift",
+            "Connection was repointed after installation; detach it explicitly before changing the old installation",
+        ));
+    }
+    if services::saved_specs(root)?.iter().any(|s| {
+        s.id == record.service.id
+            && crate::transport::fingerprint(s) != crate::transport::fingerprint(&record.service)
+    }) {
+        return Err(error(
+            "setup.drift",
+            "Owned proxy service settings changed; inspect them before installation lifecycle changes",
+        ));
+    }
+    Ok(crate::transport::fingerprint(&store.book))
+}
+
+fn startup_path(record: &Installation) -> Result<&Path> {
+    match &record.connection.authority {
+        Authority::CaddyJson { file, .. } => Ok(file),
+        Authority::TraefikDirectory { startup, .. } => Ok(startup),
+        _ => Err(error(
+            "setup.authority",
+            "Installation has an unexpected startup authority",
+        )),
+    }
+}
+
 pub fn uninstall(root: PathBuf, id: &str) -> Result<Value> {
     let _guard = lifecycle_lock(&root, id)?;
     let (directory, record) = installation(&root, id)?;
+    check_installation(&root, &record)?;
     if directory.join("upgrade.json").exists() {
         return Err(error(
             "setup.pending",
@@ -556,6 +604,9 @@ pub fn uninstall(root: PathBuf, id: &str) -> Result<Value> {
         fs::remove_file(&record.binary).map_err(io_error)?;
     }
     fs::remove_file(directory.join("installation.json")).map_err(io_error)?;
+    File::open(&directory)
+        .and_then(|f| f.sync_all())
+        .map_err(io_error)?;
     Ok(
         json!({"proxy":id,"configuration_and_certificates_retained":directory,"binary_removed":record.downloaded}),
     )
@@ -564,6 +615,7 @@ pub fn uninstall(root: PathBuf, id: &str) -> Result<Value> {
 pub fn upgrade(root: PathBuf, id: &str, version: &str) -> Result<Value> {
     let guard = lifecycle_lock(&root, id)?;
     let (directory, mut record) = installation(&root, id)?;
+    let state_digest = check_installation(&root, &record)?;
     if !record.downloaded {
         return Err(error(
             "setup.external",
@@ -580,25 +632,42 @@ pub fn upgrade(root: PathBuf, id: &str, version: &str) -> Result<Value> {
             "Recover the pending proxy upgrade first",
         ));
     }
-    let staged = directory.join("upgrade-binary");
+    let staging = tempfile::tempdir_in(&directory).map_err(io_error)?;
+    let staged = staging.path().join("upgrade-binary");
     artifact(record.engine, version, &staged)?;
-    let backup = directory.join("previous-binary");
-    if backup.exists() {
-        return Err(error(
-            "setup.backup",
-            "Previous executable backup already exists",
-        ));
-    }
-    fs::copy(&record.binary, &backup).map_err(io_error)?;
-    File::open(&backup)
-        .and_then(|f| f.sync_all())
+    let mut backup_file = tempfile::NamedTempFile::new_in(&directory).map_err(io_error)?;
+    std::io::copy(
+        &mut File::open(&record.binary).map_err(io_error)?,
+        &mut backup_file,
+    )
+    .map_err(io_error)?;
+    backup_file
+        .as_file()
+        .set_permissions(
+            fs::metadata(&record.binary)
+                .map_err(io_error)?
+                .permissions(),
+        )
         .map_err(io_error)?;
+    backup_file.as_file().sync_all().map_err(io_error)?;
+    let (_, backup) = backup_file.keep().map_err(|e| io_error(e.error))?;
+    let was_running = services::run(
+        root.clone(),
+        &ServiceCommand::Inspect {
+            id: record.service.id.clone(),
+        },
+    )?
+    .0["running"]
+        == true;
     let mut journal = Upgrade {
         installation: record.clone(),
         before_digest: record.binary_digest.clone(),
         after_digest: checksum(&staged)?,
         backup,
         phase: "prepared".into(),
+        was_running,
+        source_digest: checksum(startup_path(&record)?)?,
+        state_digest,
     };
     saved(&pending, &journal)?;
     services::run(
@@ -607,16 +676,26 @@ pub fn upgrade(root: PathBuf, id: &str, version: &str) -> Result<Value> {
             id: record.service.id.clone(),
         },
     )?;
+    if checksum(startup_path(&record)?)? != journal.source_digest
+        || check_installation(&root, &record)? != journal.state_digest
+    {
+        return Err(error(
+            "setup.recovery_required",
+            "Inputs changed during upgrade; proxy was stopped, inspect before recovering",
+        )
+        .with_changes());
+    }
     fs::rename(&staged, &record.binary).map_err(io_error)?;
     journal.phase = "published".into();
     saved(&pending, &journal)?;
-    if services::run(
-        root.clone(),
-        &ServiceCommand::Start {
-            id: record.service.id.clone(),
-        },
-    )
-    .is_err()
+    if was_running
+        && services::run(
+            root.clone(),
+            &ServiceCommand::Start {
+                id: record.service.id.clone(),
+            },
+        )
+        .is_err()
     {
         drop(guard);
         recover(root, id)?;
@@ -630,7 +709,7 @@ pub fn upgrade(root: PathBuf, id: &str, version: &str) -> Result<Value> {
     saved(&directory.join("installation.json"), &record)?;
     fs::remove_file(&pending).map_err(io_error)?;
     fs::remove_file(journal.backup).map_err(io_error)?;
-    Ok(json!({"proxy":id,"version":version,"configuration_preserved":true}))
+    Ok(json!({"proxy":id,"version":version,"running":was_running,"configuration_preserved":true}))
 }
 
 pub fn recover(root: PathBuf, id: &str) -> Result<Value> {
@@ -638,6 +717,14 @@ pub fn recover(root: PathBuf, id: &str) -> Result<Value> {
     let (directory, _) = installation(&root, id)?;
     let path = directory.join("upgrade.json");
     let journal: Upgrade = config::load(&path, config::MAX_CONFIG)?;
+    if check_installation(&root, &journal.installation)? != journal.state_digest
+        || checksum(startup_path(&journal.installation)?)? != journal.source_digest
+    {
+        return Err(error(
+            "setup.drift",
+            "Startup input or registered state changed; upgrade recovery will not replace newer intent",
+        ));
+    }
     let current = checksum(&journal.installation.binary)?;
     if current != journal.before_digest && current != journal.after_digest {
         return Err(error(
@@ -672,12 +759,14 @@ pub fn recover(root: PathBuf, id: &str) -> Result<Value> {
     restored
         .persist(&journal.installation.binary)
         .map_err(|e| io_error(e.error))?;
-    services::run(
-        root,
-        &ServiceCommand::Start {
-            id: journal.installation.service.id.clone(),
-        },
-    )?;
+    if journal.was_running {
+        services::run(
+            root,
+            &ServiceCommand::Start {
+                id: journal.installation.service.id.clone(),
+            },
+        )?;
+    }
     saved(&directory.join("installation.json"), &journal.installation)?;
     fs::remove_file(path).map_err(io_error)?;
     fs::remove_file(journal.backup).map_err(io_error)?;

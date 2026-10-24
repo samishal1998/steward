@@ -72,6 +72,7 @@ pub fn service_args(spec: &Spec, start: bool) -> ServiceArgs {
         enabled: spec.enabled,
         restart: spec.restart,
         ready_url: spec.ready_url.clone(),
+        ready_timeout: spec.ready_timeout,
         start,
     }
 }

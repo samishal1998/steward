@@ -1,0 +1,14 @@
+name: Launchd diagnostic
+on:
+  push:
+    branches: [feature/complete-management]
+    paths: ['scripts/diagnose_launchd.py', '.github/workflows/launchd-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  native-probe:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -B scripts/diagnose_launchd.py

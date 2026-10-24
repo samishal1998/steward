@@ -186,6 +186,7 @@ impl Store {
                 .unwrap_or_default()
                 .as_nanos(),
         ));
+        desired.revision = operation[..16].into();
         let journal = Journal {
             native_before: None,
             native_after: None,

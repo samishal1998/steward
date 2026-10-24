@@ -143,6 +143,9 @@ def run_engine(engine, executable, binary):
             assert rollback['data']['reverses'] == operation_id
             assert request(web + '/', 'site.localhost')[0] == b'one /'
             cli('routes', 'update', 'site', '--proxy', 'local', '--upstream', backends[1])
+            # Returning to identical intent must not revive an older operation's
+            # authority to roll back a newer write (the ABA case).
+            assert cli('operations','rollback',operation_id,success=False)['diagnostics'][0]['code']=='operation.drift'
             assert len(cli('operations','list')['data']) >= 4
             manifest = root / 'intent.json'
             manifest.write_text(json.dumps({'schema_version':'1','scope':'user','routes':[{'id':'planned','proxy':'local','hostname':'planned.localhost','upstream':{'url':backends[0]},'enabled':True,'tls':{'mode':'http'}}]}))
@@ -193,10 +196,16 @@ def run_engine(engine, executable, binary):
                 assert exc.code == 404
             cli('routes', 'enable', 'site', '--proxy', 'local')
             assert request(web + '/', 'site.localhost')[0] == b'two /'
-            cli('routes', 'remove', 'site', '--proxy', 'local')
+            removed=cli('routes', 'remove', 'site', '--proxy', 'local')
             if engine == 'traefik':
                 assert not managed_file.exists(), 'Final route removal must delete the owned aggregate'
                 assert external_path.read_text() == original_external
+                blocking=root/'dynamic/blocking.yaml'
+                blocking.write_text(json.dumps({'http':{'routers':{'blocking':{'rule':'Host(`site.localhost`)','entryPoints':['web'],'service':'blocking'}},'services':{'blocking':{'loadBalancer':{'servers':[{'url':backends[0]}]}}}}}))
+                wait(lambda:any(r['name']=='blocking@file' for r in json.loads(request(api+'/api/http/routers')[0])))
+                assert cli('operations','rollback',removed['data']['operation'],success=False)['diagnostics'][0]['code']=='route.external_overlap'
+                blocking.unlink()
+                wait(lambda:not any(r['name']=='blocking@file' for r in json.loads(request(api+'/api/http/routers')[0])))
             else:
                 assert json.loads(source.read_text())['apps']['http']['servers']['web']['routes'] == [external]
 

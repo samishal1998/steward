@@ -117,14 +117,17 @@ steward services remove web
 ```
 
 `services update` takes the complete replacement specification. `--env NAME=VALUE`,
-`--restart`, and `--scope user|system` configure the native definition. Environment
+`--restart`, `--ready-timeout 30` (1–300 seconds), and `--scope user|system` configure the native definition. Environment
 values and command arguments are omitted from inspection/export output. Put global
 `--json` before the final `--` executable-argument separator.
 
 systemd and launchd supervise the app; Steward has no supervisor daemon. Definitions
 must still match their ownership fingerprints. `services recover` compensates an
 unfinished service operation. Completed service operations can be reversed with
-`operations rollback ID` while registry, definition, and runtime still match.
+`operations rollback ID` while registry, definition, running state and native enablement still match.
+
+Use `services discover --scope user` and `services inspect-native NAME` for
+read-only observations of external native services; discovery does not adopt them.
 
 ## Service-first up, route-first down
 
@@ -137,9 +140,9 @@ replace its two absolute paths and select your registered proxy ID. The executab
 and working directory must exist on the target where you run Steward.
 
 ```sh
-steward up --file stack.json
-steward down my-stack
-steward down my-stack --remove-services
+steward up --file service-stack.json
+steward down demo
+steward down demo --remove-services
 ```
 
 Up starts/waits for services before publishing routes. Down removes the stack's

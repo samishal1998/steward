@@ -44,7 +44,7 @@ def exercise(binary,caddy):
                 log.flush()
                 with (root/'sshd.log').open('rb') as stream:print(stream.read(8192).decode(),file=sys.stderr)
                 raise
-            prefix=[str(binary),'--ssh','acceptance','--remote-bin',str(binary),'--state-dir',str(root/'remote state')]
+            prefix=[str(binary),'--ssh','acceptance','--remote-bin',str(binary),'--state-dir',str(root/"remote state's workspace")]
             def cli(*args):
                 result=subprocess.run(prefix+list(args)+['--json'],env=env,capture_output=True,timeout=90)
                 assert result.returncode==0,(args,result.stdout.decode(),result.stderr.decode())
@@ -53,6 +53,9 @@ def exercise(binary,caddy):
             cli('routes','add','app','--proxy','edge','--host','ssh.localhost','--upstream',f'http://127.0.0.1:{backend}','--tls','http')
             assert request(f'http://127.0.0.1:{web}/','ssh.localhost')[0]==b'ssh backend'
             cli('routes','remove','app','--proxy','edge')
+            version_target=root/'version-target';version_target.write_text('#!/bin/sh\nprintf "remote-version-sentinel\\n"\n');version_target.chmod(0o755)
+            version=subprocess.run([str(binary),'--ssh','acceptance','--remote-bin',str(version_target),'--version'],env=env,capture_output=True,timeout=10)
+            assert version.returncode==0 and version.stdout.strip()==b'remote-version-sentinel'
             print('SSH target: host-key verification, quoted paths with spaces, live route apply and removal passed.')
         finally:
             for child in (proxy,sshd):

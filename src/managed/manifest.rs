@@ -18,6 +18,8 @@ struct Step {
     routes: Vec<RouteSpec>,
     source_fingerprint: String,
     native_fingerprint: String,
+    #[serde(default)]
+    tool_fingerprint: Option<String>,
 }
 
 impl Store {
@@ -27,6 +29,9 @@ impl Store {
         output: Option<&Path>,
     ) -> Result<Value> {
         self.ready()?;
+        if regular(&self.root.join("state.json"))?.is_none() {
+            self.save(&self.book)?;
+        }
         if manifest.scope != Scope::User || !manifest.services.is_empty() {
             return Err(error(
                 "plan.scope",
@@ -50,6 +55,7 @@ impl Store {
             )?;
             let native = transport::fetch(&prepared.connection.binding)?;
             steps.push(Step {
+                tool_fingerprint: tool_fingerprint(&self.root, &prepared.connection)?,
                 proxy,
                 routes,
                 source_fingerprint: fingerprint(&prepared.before),
@@ -138,6 +144,7 @@ impl Store {
         if fingerprint(&prepared.before) != step.source_fingerprint
             || fingerprint(&transport::fetch(&prepared.connection.binding)?.values)
                 != step.native_fingerprint
+            || tool_fingerprint(&self.root, &prepared.connection)? != step.tool_fingerprint
         {
             return Err(error(
                 "plan.stale",
@@ -146,5 +153,28 @@ impl Store {
             .at(&step.proxy));
         }
         Ok(prepared)
+    }
+}
+
+fn tool_fingerprint(root: &Path, connection: &Connection) -> Result<Option<String>> {
+    match &connection.authority {
+        Authority::CaddyJson { binary, .. } | Authority::CaddyFile { binary, .. } => {
+            transport::executable_fingerprint(binary).map(Some)
+        }
+        Authority::TraefikDirectory { .. } => {
+            let path = root
+                .join("proxies")
+                .join(&connection.binding.id)
+                .join("installation.json");
+            if regular(&path)?.is_some() {
+                Ok(Some(fingerprint(&config::read_bounded(
+                    &path,
+                    config::MAX_CONFIG,
+                )?)))
+            } else {
+                Ok(None)
+            }
+        }
+        Authority::ReadOnly => Ok(None),
     }
 }

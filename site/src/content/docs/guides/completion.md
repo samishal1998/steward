@@ -50,4 +50,13 @@ steward completions powershell | Out-String | Invoke-Expression
 eval (steward completions elvish | slurp)
 ```
 
-The installer does not edit shell startup files. Completions cover command names and options; dynamic completion of saved proxy/route IDs is a later refinement.
+The installer does not edit shell startup files. Released alpha.2 completion covers
+command names and options. In the 0.2.0-dev.1 management branch, add `--dynamic`:
+
+```sh
+source <(steward completions bash --dynamic)
+```
+
+Dynamic completion reads saved local proxy/route IDs without contacting APIs or
+creating state. Re-source it after upgrades. It does not use local IDs for an SSH
+or container target.
