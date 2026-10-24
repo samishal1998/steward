@@ -20,7 +20,7 @@ placeholders. Existing read-only profiles and alpha.2 state remain readable.
 | Discovery | Native/API/file/known-label evidence with provenance; inaccessible sources remain partial | Implemented; known-label parsing is bounded and unsupported matcher values are redacted |
 | Remote/container | Explicit execution target; native operations and verification run in that target's context | Implemented; real key-authenticated SSH and container-local writes/removal passed |
 | Proxy lifecycle | Explicit install/setup/upgrade/detach/uninstall with artifact integrity and data preservation | Implemented; real Caddy download/install/upgrade/uninstall and config retention passed on Linux |
-| Native services | systemd/launchd definitions, lifecycle, enablement, status, bounded logs and ownership | Implemented; systemd live suite passed; launchd CI readiness issue under investigation |
+| Native services | systemd/launchd definitions, lifecycle, enablement, status, bounded logs and ownership | Implemented; real systemd and launchd user-service suites passed, including native enablement and failed-readiness compensation |
 | Composition | Service readiness before route publication; route-first shutdown; explicit service retention/removal | Implemented with pre-effect operation checkpoints; Linux up/down/retention/removal suite passed |
 | TUI | Interactive Routes/Proxies/Services/Operations views using core command paths | Implemented; real PTY navigation, command execution and terminal restoration passed |
 | AppTrail | Versioned redacted export and compatible reader contract; preserve provenance and partial coverage | Implemented in both feature branches; AppTrail Linux/macOS/Windows CI passed initial reader, frontend and migration suite |
@@ -58,8 +58,8 @@ changed by this work. The user explicitly authorized branch publication and CI.
   passed Linux/macOS/Windows, including existing native-service checks.
 - Initial [Steward checks 40119051666](https://github.com/samishal1998/steward/actions/runs/40119051666)
   passed Linux, docs and MSRV. macOS passed route/TLS suites but found a launchd
-  service-readiness failure; its failure is retained and follow-up checks will
-  establish the fix rather than relabeling it as a pass.
+  service-readiness failure; its failure is retained and the later passing run
+  below verifies the resolved fixture/platform issues.
 
 macOS diagnosis: a process sample in run
 [40124697697](https://github.com/samishal1998/steward/actions/runs/40124697697)
@@ -71,6 +71,37 @@ startup, HTTP readiness, enablement, lifecycle, rollback and failed-readiness
 compensation. A subsequent run passed startup and exposed macOS 26's textual
 `enabled`/`disabled` output; the reader now supports both that representation and
 older boolean overrides. Temporary process-sampling workflows/examples were removed.
+
+## Final verification
+
+- Steward code commit `c7c28051394834e1139b1785caf64de997349c34`:
+  [checks 40126510311](https://github.com/samishal1998/steward/actions/runs/40126510311)
+  **passed** Linux x86_64 and macOS ARM64 checks, 24 Rust tests, 9 installer tests,
+  real proxy route/TLS/adoption/plan/history/recovery suites, real native service
+  lifecycle and composition, and PTY interaction/restoration. Linux additionally
+  passed pinned Docker-controller/container-target and strict-key SSH acceptance.
+  Rust 1.89 minimum-version and documentation jobs passed.
+- AppTrail code commit `d85c8c6e1b53eb818914ca21b104c9ea526a5a2d`:
+  [checks 40124701437](https://github.com/samishal1998/apptrail/actions/runs/40124701437)
+  **passed** its Linux/macOS/Windows matrix, including export validation, retained
+  observations/preferences on partial input, host/state identity changes, upgrade
+  migrations, Go checks, and frontend builds.
+- The macOS terminal harness uses `openpty` plus subprocess spawning, bounded
+  output/waits and terminal restoration checks rather than running Python code
+  after `pty.fork` in the framework interpreter. The actual TUI assertions run
+  on both OSes without a platform skip.
+- Local Starlight browser verification passed the management guide at mobile
+  widths, 23 internal links, selected-brand/header/favicon behavior, search/themes,
+  and source-identical agent/example/schema downloads.
+- Local test services and Docker containers were cleaned up: no `steward-*` user
+  unit files or test containers remained. Temporary diagnostic workflows, sampled
+  process scripts and timing examples were removed from the feature branch.
+
+The implementation is available for review on `feature/complete-management` in
+both repositories. No merge or release was requested; the installer still selects
+the existing alpha.2 distribution. External public ACME/DNS, system-scope runtime
+and logout/reboot acceptance remain deployment-specific verification boundaries,
+not inferred from these user-scope lifecycle tests.
 
 This implementation does not certify arbitrary modules/topologies, public DNS/
 ACME reachability, or logout/reboot behavior without on-target evidence. Nginx,

@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-24 — management expansion implemented on a feature branch; cross-platform verification in progress.** Workspace:
+**Updated: 2026-10-24 — management expansion implemented and verified on Linux/macOS feature branches.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -19,6 +19,13 @@ Implementation and acceptance records are maintained in
 read-only export schema. AppTrail's branch adds the matching file provider and
 upgrade-safe provider-schema migration. Existing `steward-plan/` user work in the
 AppTrail checkout is excluded from publication.
+
+Steward [checks 40126510311](https://github.com/samishal1998/steward/actions/runs/40126510311)
+and AppTrail [checks 40124701437](https://github.com/samishal1998/apptrail/actions/runs/40124701437)
+passed. The feature coverage document records exact executed suites and qualified
+boundaries, including the resolved macOS reverse-DNS fixture, launchd enablement
+format and PTY-spawn issues. The work is published on review branches; release
+alpha.2 remains the installer target until a merge/release is requested.
 
 ### Original handoff record
 

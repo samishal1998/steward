@@ -6,7 +6,7 @@ Version `0.2.0-dev.1` implements the previously listed non-deferred gaps, includ
 checked apply, native TLS/file/controller modes, proxy/native-service lifecycle,
 targets, composition, history/rollback, adoption, dynamic completion, TUI and a
 versioned AppTrail reader/export pair. See [feature coverage and actual execution
-evidence](FEATURE_COMPLETION.md). Platform checks in progress are marked there;
+evidence](FEATURE_COMPLETION.md). Linux/macOS native user-scope checks passed;
 public ACME/DNS and logout/reboot are not inferred from local lifecycle tests.
 Nginx, Windows for Steward, and custom label mappings remain deferred by the user.
 
