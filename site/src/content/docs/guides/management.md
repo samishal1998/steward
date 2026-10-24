@@ -213,5 +213,7 @@ explicitly schedule exports within 15 minutes; no exporter daemon is installed.
 The versioned snapshot preserves host/state identity, scope, kind, native source
 coverage, desired enablement and observed status. Background services get no invented
 URL. Partial/stale/invalid snapshots retain prior AppTrail observations and user
-preferences. This is a read-only integration; dashboard edits do not become
+preferences. A different exported host/state identity requires a new provider,
+so an empty export from another workspace cannot erase prior presence.
+This is a read-only integration; dashboard edits do not become
 infrastructure commands.
