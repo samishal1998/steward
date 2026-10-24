@@ -44,6 +44,9 @@ jobs:
           key: ${{ steps.rust-cache.outputs.cache-primary-key }}
       - name: Installer contracts
         run: sh -n install.sh && python3 -B -m unittest discover -s scripts -p 'test_*.py'
+      - name: Interactive terminal acceptance
+        timeout-minutes: 2
+        run: python3 -B scripts/live_tui.py --binary target/debug/steward
       - name: Fetch pinned test-only proxy executables
         run: python3 -B scripts/fetch_test_proxies.py --dir "$RUNNER_TEMP/steward-proxies"
       - name: Prepare disposable Linux user supervisor
@@ -64,8 +67,6 @@ jobs:
         run: |
           python3 -B scripts/live_tls_files.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy"
           python3 -B scripts/live_tls_native.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy" --traefik "$RUNNER_TEMP/steward-proxies/traefik"
-      - name: Interactive terminal acceptance
-        run: python3 -B scripts/live_tui.py --binary target/debug/steward
       - name: Docker controller and container target acceptance
         if: runner.os == 'Linux'
         shell: bash
