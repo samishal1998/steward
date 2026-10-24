@@ -23,27 +23,10 @@ def exercise(binary):
             server=Path(__file__).resolve().parents[1]/'examples/static-server.py'
             command=prefix+['--json','services','add','web','--executable',sys.executable,'--working-directory',str(root),'--ready-url',f'http://127.0.0.1:{listen}/','--start','--',str(server),'--port',str(listen),'--bind','127.0.0.1']
             process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-            externally_ready=False;started=time.monotonic();deadline=started+55;diagnosed=False
+            externally_ready=False;deadline=time.monotonic()+55
             while process.poll() is None and time.monotonic()<deadline:
                 try:request(f'http://127.0.0.1:{listen}/');externally_ready=True
                 except OSError:pass
-                if sys.platform=='darwin' and not diagnosed and time.monotonic()-started>4 and (state/'service-operation.json').exists():
-                    diagnosed=True
-                    import plistlib,re
-                    operation=json.loads((state/'service-operation.json').read_text());record=operation['record']
-                    if Path(record['path']).exists():
-                        with Path(record['path']).open('rb') as stream:payload=plistlib.load(stream)
-                        print('Generated fixture ProgramArguments:',payload['ProgramArguments'],file=sys.stderr)
-                    printed=subprocess.run(['launchctl','print',f"gui/{os.getuid()}/{record['label']}"],capture_output=True,text=True,timeout=10)
-                    match=re.search(r'^\s*pid = (\d+)',printed.stdout,re.M)
-                    if match:
-                        pid=match[1]
-                        subprocess.run(['ps','-ww','-p',pid,'-o','pid=,command=,state='],timeout=5)
-                        subprocess.run(['lsof','-a','-p',pid,'-iTCP','-n','-P'],timeout=5)
-                        sample=root/'sample.txt'
-                        subprocess.run(['sample',pid,'1','-file',str(sample)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10)
-                        if sample.exists():
-                            with sample.open('rb') as stream:print(stream.read(16000).decode(errors='replace'),file=sys.stderr)
                 time.sleep(.1)
             stdout,stderr=process.communicate(timeout=10)
             result=subprocess.CompletedProcess(command,process.returncode,stdout,stderr)

@@ -18,7 +18,7 @@ class Server(http.server.ThreadingHTTPServer):
 
     def server_bind(self):
         # HTTPServer normally reverse-resolves its bound address during startup.
-        # This numeric-address example needs no DNS or macOS mDNS permission.
+        # This numeric-address example has no reverse-DNS startup dependency.
         socketserver.TCPServer.server_bind(self)
         self.server_name = str(args.bind)
         self.server_port = self.server_address[1]

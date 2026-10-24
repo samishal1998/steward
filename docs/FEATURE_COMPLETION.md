@@ -61,6 +61,17 @@ changed by this work. The user explicitly authorized branch publication and CI.
   service-readiness failure; its failure is retained and follow-up checks will
   establish the fix rather than relabeling it as a pass.
 
+macOS diagnosis: a process sample in run
+[40124697697](https://github.com/samishal1998/steward/actions/runs/40124697697)
+showed Python 3.15's stock HTTP server blocked in `socket_gethostbyaddr` → mDNS
+before listening. Independent launchd registration/start checks passed. The
+portable `examples/static-server.py` now binds the numeric address without that
+unrelated reverse lookup, while the acceptance suite still requires real native
+startup, HTTP readiness, enablement, lifecycle, rollback and failed-readiness
+compensation. A subsequent run passed startup and exposed macOS 26's textual
+`enabled`/`disabled` output; the reader now supports both that representation and
+older boolean overrides. Temporary process-sampling workflows/examples were removed.
+
 This implementation does not certify arbitrary modules/topologies, public DNS/
 ACME reachability, or logout/reboot behavior without on-target evidence. Nginx,
 Windows support for Steward, and custom label mappings remain explicitly deferred.

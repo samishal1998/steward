@@ -642,8 +642,22 @@ fn enabled(record: &Record) -> Result<Option<bool>> {
             ));
         }
         let text = String::from_utf8_lossy(&result.stdout);
-        let disabled = format!("\"{}\" => true", record.label);
-        Ok(Some(!text.contains(&disabled)))
+        for line in text.lines() {
+            if let Some((name, value)) = line.split_once("=>")
+                && name.trim().trim_matches('"') == record.label
+            {
+                return match value.trim().trim_end_matches([',', ';']) {
+                    "true" | "disabled" => Ok(Some(false)),
+                    "false" | "enabled" => Ok(Some(true)),
+                    _ => Err(error(
+                        "service.enablement",
+                        "Unrecognized native launchd enablement value",
+                    )),
+                };
+            }
+        }
+        // No override means launchd permits this label to load.
+        Ok(Some(true))
     }
 }
 
@@ -1272,10 +1286,11 @@ fn logs(root: &Path, record: &Record, lines: u16) -> Result<Value> {
             let length = file.metadata().map_err(io_error)?.len();
             file.seek(SeekFrom::Start(length.saturating_sub(128 * 1024)))
                 .map_err(io_error)?;
-            let mut text = String::new();
+            let mut bytes = Vec::new();
             file.take(128 * 1024)
-                .read_to_string(&mut text)
+                .read_to_end(&mut bytes)
                 .map_err(io_error)?;
+            let text = String::from_utf8_lossy(&bytes);
             let rows: Vec<_> = text.lines().rev().take(lines as usize).collect();
             result.push(
                 json!({"stream":kind,"text":rows.into_iter().rev().collect::<Vec<_>>().join("\n")}),
