@@ -285,11 +285,13 @@ impl Store {
             }
             #[cfg(unix)]
             {
-                use std::os::unix::fs::PermissionsExt;
-                if meta.permissions().mode() & 0o077 != 0 {
+                use std::os::unix::fs::{MetadataExt, PermissionsExt};
+                if meta.permissions().mode() & 0o077 != 0
+                    || meta.uid() != unsafe { libc::geteuid() }
+                {
                     return Err(error(
                         "state.permissions",
-                        "Existing state directory must be private (chmod 700)",
+                        "Existing state directory must be private (chmod 700) and owned by the current user",
                     ));
                 }
             }
@@ -315,6 +317,34 @@ impl Store {
                     "state.invalid",
                     "Stored state exceeds its schema bounds",
                 ));
+            }
+            let mut bindings = std::collections::BTreeSet::new();
+            for connection in &book.connections {
+                config::resource_id(&connection.binding.id)?;
+                config::validate_endpoint(&connection.binding.endpoint)?;
+                if !bindings.insert(&connection.binding.id) {
+                    return Err(error(
+                        "state.invalid",
+                        "Duplicate connection ID in stored state",
+                    ));
+                }
+                if let Some(auth) = &connection.binding.auth_file {
+                    absolute(Path::new(auth))?;
+                }
+            }
+            let mut routes = std::collections::BTreeSet::new();
+            for receipt in &book.routes {
+                let mut spec = receipt.spec.clone();
+                config::validate_route(&mut spec)?;
+                if fingerprint(&spec) != fingerprint(&receipt.spec)
+                    || !bindings.contains(&receipt.spec.proxy)
+                    || !routes.insert((&receipt.spec.proxy, &receipt.spec.id))
+                {
+                    return Err(error(
+                        "state.invalid",
+                        "Stored route identity/binding/normalization is inconsistent",
+                    ));
+                }
             }
             book
         } else {

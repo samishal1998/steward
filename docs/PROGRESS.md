@@ -1,10 +1,26 @@
 # Steward progress
 
-**Updated: 2026-10-10 — alpha.2 direct local HTTP routes and public guides published/verified.** Workspace:
+**Updated: 2026-10-24 — management expansion implemented on a feature branch; cross-platform verification in progress.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
 ## Completed handoff
+
+### Management expansion — 2026-10-24
+
+The user requested all previously listed missing features and smaller CLI gaps,
+then explicitly deferred Nginx, Windows for Steward and custom label mappings.
+They authorized publication of feature branches in Steward and AppTrail to verify
+macOS behavior. Main branches and released installer versions remain separate.
+
+Implementation and acceptance records are maintained in
+[FEATURE_COMPLETION.md](FEATURE_COMPLETION.md). Development version is
+`0.2.0-dev.1`; source has a new management guide, agent instructions and versioned
+read-only export schema. AppTrail's branch adds the matching file provider and
+upgrade-safe provider-schema migration. Existing `steward-plan/` user work in the
+AppTrail checkout is excluded from publication.
+
+### Original handoff record
 
 | Task | Status | Evidence |
 |---|---|---|

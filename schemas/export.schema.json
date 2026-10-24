@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samishal1998.github.io/steward/schemas/export.schema.json",
+  "title": "Steward read-only inventory export v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "host_id", "revision", "observed_at", "complete", "sources", "resources"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "kind": { "const": "steward.inventory" },
+    "host_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "revision": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "observed_at": { "type": "integer", "minimum": 0 },
+    "complete": { "type": "boolean" },
+    "sources": {
+      "type": "array", "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "kind", "complete"],
+        "properties": { "id": { "type": "string" }, "kind": { "enum": ["proxy", "service"] }, "complete": { "type": "boolean" } }
+      }
+    },
+    "resources": {
+      "type": "array", "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "id", "binding", "scope", "name", "enabled", "ownership", "observed", "public_url"],
+        "properties": {
+          "kind": { "enum": ["route", "service"] }, "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "binding": { "type": "string", "maxLength": 64 }, "scope": { "enum": ["user", "system"] },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 }, "enabled": { "type": "boolean" },
+          "ownership": { "const": "owned_definition" }, "observed": { "enum": ["present", "absent", "running", "stopped", "unknown"] },
+          "public_url": { "type": ["string", "null"], "maxLength": 2048 }
+        }
+      }
+    }
+  }
+}

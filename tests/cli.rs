@@ -222,3 +222,40 @@ fn unmanaged_routes_are_not_adopted_or_removed_by_name() {
     assert_eq!(std::fs::read_to_string(&source).unwrap(), original);
     assert!(!state.join("operation.json").exists());
 }
+
+#[test]
+fn native_file_inspection_rejects_scalar_router_definitions() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("native.json");
+    std::fs::write(&file, r#"{"http":{"routers":{"broken":42},"services":{}}}"#).unwrap();
+    let result = binary()
+        .args(["proxies", "inspect-file", "--engine", "traefik", "--file"])
+        .arg(file)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["diagnostics"][0]["code"], "discovery.invalid_file");
+}
+
+#[test]
+fn runtime_completion_reads_saved_ids_without_touching_state_or_network() {
+    let directory = tempfile::tempdir().unwrap();
+    let state = directory.path();
+    let value = serde_json::json!({"schema_version":"1","owner":"0123456789abcdef","connections":[{"binding":{"id":"local","engine":"caddy","endpoint":"http://127.0.0.1:1","auth_file":"/not/read"},"authority":{"kind":"read_only"}}],"routes":[{"spec":{"id":"site","proxy":"local","hostname":"site.localhost","upstream":{"url":"http://127.0.0.1:3000"},"enabled":true,"tls":{"mode":"http"}},"native_id":"saved"}]});
+    let original = serde_json::to_vec(&value).unwrap();
+    std::fs::write(state.join("state.json"), &original).unwrap();
+    let result = binary()
+        .env("STEWARD_COMPLETE", "bash")
+        .env("_CLAP_COMPLETE_INDEX", "5")
+        .args(["--", "steward", "--state-dir"])
+        .arg(state)
+        .args(["routes", "inspect", "si"])
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+    assert!(String::from_utf8_lossy(&result.stdout).contains("site"));
+    assert_eq!(std::fs::read(state.join("state.json")).unwrap(), original);
+    assert!(!state.join("lock").exists());
+}

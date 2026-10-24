@@ -132,6 +132,10 @@ Use a version-1 stack with `id`, `scope: user`, a `services` array and a `routes
 array. Each route entry has a `spec` (the existing route specification) and a
 `depends_on` list of service IDs. Every dependency must provide a readiness URL.
 
+[Download the stack example](../../downloads/examples/service-stack.json), then
+replace its two absolute paths and select your registered proxy ID. The executable
+and working directory must exist on the target where you run Steward.
+
 ```sh
 steward up --file stack.json
 steward down my-stack

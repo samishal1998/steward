@@ -1,5 +1,17 @@
 # Steward capabilities and evidence
 
+## Management expansion — feature branch, 2026-10-24
+
+Version `0.2.0-dev.1` implements the previously listed non-deferred gaps, including
+checked apply, native TLS/file/controller modes, proxy/native-service lifecycle,
+targets, composition, history/rollback, adoption, dynamic completion, TUI and a
+versioned AppTrail reader/export pair. See [feature coverage and actual execution
+evidence](FEATURE_COMPLETION.md). Platform checks in progress are marked there;
+public ACME/DNS and logout/reboot are not inferred from local lifecycle tests.
+Nginx, Windows for Steward, and custom label mappings remain deferred by the user.
+
+## Released alpha.2 baseline
+
 **Updated: 2026-10-10.** The direct-command HTTP slice is implemented and exercised
 with disposable local Caddy 2.11.7 and Traefik 3.7.14 on Linux x86_64. This is an
 alpha extension, not completion of every proxy-management mode.

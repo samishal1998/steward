@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -52,6 +52,25 @@ jobs:
           python3 -B scripts/live_stack_setup.py --binary target/debug/steward
       - name: Interactive terminal acceptance
         run: python3 -B scripts/live_tui.py --binary target/debug/steward
+      - name: Docker controller and container target acceptance
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=lucaslorentz/caddy-docker-proxy@sha256:3e6cf4a6382da0cd14108a69929d7f8cc59e9a59cae4c9795071fa392ffa8036
+          docker pull "$image"
+          extraction=$(docker create "$image")
+          trap 'docker rm -f "$extraction" >/dev/null 2>&1 || true' EXIT
+          docker cp "$extraction:/bin/caddy" "$RUNNER_TEMP/steward-proxies/controller"
+          python3 -B scripts/live_controller.py --binary target/debug/steward --controller "$RUNNER_TEMP/steward-proxies/controller"
+          docker pull ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+          python3 -B scripts/live_container.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy"
+      - name: SSH target acceptance
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          python3 -B scripts/live_ssh.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy"
 
   msrv:
     runs-on: ubuntu-latest

@@ -1,5 +1,12 @@
 # Implemented CLI contract — schema v1
 
+Development branch `0.2.0-dev.1` extends this released alpha.2 contract with the
+[management workflows](../site/src/content/docs/guides/management.md). Managed
+plans now support apply; native services, TLS, Caddyfile/controller authorities,
+targets, composition, history/rollback and TUI have dedicated command paths. The
+profile-only read/preview contract below remains compatible. Export schema:
+[`schemas/export.schema.json`](../schemas/export.schema.json).
+
 This document describes the current alpha.2 implementation, not the archived
 future command grammar. Direct local HTTP route writes are available through
 stored explicit authority; manifest apply and native services remain unavailable.

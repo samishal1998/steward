@@ -16,6 +16,8 @@ Check `steward --version` and `--help`; use `--json` for operations. `proxies ad
 
 ## Project
 
+- [Management expansion (development branch)](https://github.com/samishal1998/steward/blob/feature/complete-management/site/src/content/docs/guides/management.md): 0.2.0-dev.1 plans/apply, TLS, Caddyfile/controller support, native services, lifecycle, targets, history/rollback, composition and TUI. These require a branch build; the public installer remains alpha.2.
+
 - [Repository](https://github.com/samishal1998/steward): source, schemas and synthetic fixtures.
 - [Releases](https://github.com/samishal1998/steward/releases): native archives, checksums and pinned installers.
 - [Roadmap](https://samishal1998.github.io/steward/project/architecture/): remaining compatibility and implementation gates.

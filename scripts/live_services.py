@@ -29,8 +29,8 @@ def exercise(binary):
             assert result.returncode==0,(result.stdout.decode(),result.stderr.decode())
             registry=json.loads((state/'services.json').read_text());native=Path(registry['services'][0]['path'])
             assert cli('services','inspect','web')['data']['running'] is True
-            cli('services','enable','web');assert cli('services','inspect','web')['data']['enabled'] is True
-            cli('services','disable','web');assert cli('services','inspect','web')['data']['enabled'] is False
+            cli('services','enable','web');assert cli('services','inspect','web')['data']['native_enabled'] is True
+            cli('services','disable','web');assert cli('services','inspect','web')['data']['native_enabled'] is False
             cli('services','restart','web');assert request(f'http://127.0.0.1:{listen}/')[0]
             cli('services','logs','web','--lines','10')
             original=native.read_bytes();native.write_bytes(original+b'\n# external edit\n')

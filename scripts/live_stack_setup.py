@@ -30,6 +30,7 @@ def exercise(binary):
             assert any(r['kind']=='service' and r['public_url'] is None for r in export['resources'])
             assert any(r['kind']=='route' and r['public_url']==f'http://app.localhost:{web}' for r in export['resources'])
             cli('down','demo');assert cli('services','inspect','webapp')['data']['running'] is True
+            cli('up','--file',str(stack));assert request(f'http://127.0.0.1:{web}/','app.localhost')[0]
             cli('down','demo','--remove-services');assert not any(s['id']=='webapp' for s in cli('services','list')['data'])
             cli('proxies','uninstall','edge');assert (state/'proxies/edge/proxy.json').exists()
             assert not (state/'proxies/edge/caddy').exists()

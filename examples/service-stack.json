@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "id": "demo",
+  "scope": "user",
+  "services": [{
+    "id": "webapp",
+    "scope": "user",
+    "executable": "/absolute/path/to/python3",
+    "args": ["-m", "http.server", "3000", "--bind", "127.0.0.1"],
+    "working_directory": "/absolute/path/to/site",
+    "environment": {},
+    "enabled": false,
+    "restart": false,
+    "ready_url": "http://127.0.0.1:3000/"
+  }],
+  "routes": [{
+    "spec": {
+      "id": "app",
+      "proxy": "local",
+      "hostname": "app.localhost",
+      "upstream": { "url": "http://127.0.0.1:3000" },
+      "enabled": true,
+      "tls": { "mode": "http" }
+    },
+    "depends_on": ["webapp"]
+  }]
+}

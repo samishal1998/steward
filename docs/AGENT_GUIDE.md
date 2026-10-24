@@ -1,5 +1,56 @@
 # Steward agent guide
 
+## Development branch: 0.2.0-dev.1
+
+The `feature/complete-management` branch adds the workflows below. Check the
+installed version: the public installer still supplies alpha.2, whose contract is
+retained in the subsequent sections. Do not issue development-only commands to
+an older installed binary.
+
+- `proxies update` takes a complete replacement connection; `proxies remove`
+  refuses owned routes; `proxies detach` explicitly relinquishes ownership.
+- `proxies discover --probe [--docker unix:///var/run/docker.sock]` reports
+  candidates, not write authority. `proxies inspect-file --engine … --file …`
+  provides qualified offline native evidence.
+- Managed `plan --file routes.yaml --out /absolute/review.json`, followed by
+  `apply --plan /absolute/review.json --yes`, checks state/source/native digests.
+  Omitted IDs are not pruned. Multi-proxy partial results include operation IDs.
+- Caddyfile connections add `--caddyfile --listener IP:PORT --caddy-bin PATH`;
+  a Docker controller's actual base file additionally uses `--docker-controller`.
+  The controller remains the effective writer.
+- Routes accept `--tls http|internal|public` with matching native listener/issuer
+  setup. Internal TLS requires explicit `--ca-file`; Traefik additionally uses
+  certificate/key paths or a configured public `--cert-resolver`. No insecure
+  verification or trust-store edits are performed.
+- `proxies install ID --engine … --version …` verifies upstream artifacts and
+  installs a native service; `setup --binary PATH` uses an existing executable.
+  `upgrade`, `recover`, and `uninstall` preserve configuration/certificate data.
+- `services add/update` takes a complete executable/argv/environment specification.
+  `start`, `stop`, `restart`, `enable`, `disable`, `inspect`, `logs`, and `remove`
+  operate on receipt-owned systemd/launchd definitions. `services recover` handles
+  unfinished operations. Keep global `--json` before an executable's `--` argv.
+- `up --file STACK` is service-first/readiness-gated; `down STACK_ID` is route-first
+  and retains services unless `--remove-services` explicitly removes stack-created
+  services. Persistent pre-effect operation IDs support interrupted reconciliation.
+- `--ssh HOST` and `--container NAME` execute the installed `--remote-bin` in that
+  target. Paths, native managers, and loopback probes belong to the target.
+- `operations list/inspect` expose bounded historical metadata. `rollback ID`
+  reverses a verified route/service operation only while inputs and state match.
+  `recover` is for unfinished route writes; never force restoration over drift.
+- `routes adopt ID --proxy … --native-id … --expected-fingerprint …` handles
+  exactly representable native HTTP definitions. Traefik requires the dedicated
+  source file via `--source`; complex external definitions remain external.
+- `completions SHELL --dynamic` completes saved local IDs without network calls.
+  `tui` exposes the same application commands interactively.
+- `export --out /absolute/shared/steward.json` emits schema-v1 `steward.inventory`
+  for AppTrail's matching read-only file provider. Partial/stale snapshots preserve
+  prior observations. Export files contain no private command environment/backups.
+
+Use [management workflows](../site/src/content/docs/guides/management.md) and
+[feature evidence](FEATURE_COMPLETION.md) for exact setup and verification limits.
+
+## Released alpha.2 contract
+
 Requires Steward v0.1.0-alpha.2 for direct commands and completions. Check `steward --version` and `steward --help` before acting; alpha.1 supports inventory/previews only.
 
 ## Discover connections and routes

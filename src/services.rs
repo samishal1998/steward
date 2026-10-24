@@ -61,6 +61,16 @@ pub struct ServiceArgs {
 
 #[derive(Subcommand)]
 pub enum ServiceCommand {
+    #[command(about = "List native services as external observations; no ownership is granted")]
+    Discover {
+        #[arg(long, value_enum, default_value = "user")]
+        scope: Scope,
+    },
+    InspectNative {
+        name: String,
+        #[arg(long, value_enum, default_value = "user")]
+        scope: Scope,
+    },
     List,
     Inspect {
         id: String,
@@ -120,6 +130,10 @@ struct Journal {
     was_running: bool,
     #[serde(default)]
     after_running: Option<bool>,
+    #[serde(default)]
+    before_enabled: Option<bool>,
+    #[serde(default)]
+    after_enabled: Option<bool>,
     #[serde(default)]
     reverses: Option<String>,
 }
@@ -316,7 +330,12 @@ fn definition(record: &Record, root: &Path) -> Result<String> {
                 xml(value)
             ));
         }
-        body.push_str(&format!("</dict><key>RunAtLoad</key><{}/><key>KeepAlive</key><{}/><key>StandardOutPath</key><string>{}</string><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",s.enabled,s.restart,xml(&root.join(format!("{}.stdout.log",record.label)).to_string_lossy()),xml(&root.join(format!("{}.stderr.log",record.label)).to_string_lossy())));
+        let keep_alive = if s.restart {
+            "<dict><key>SuccessfulExit</key><false/></dict>"
+        } else {
+            "<false/>"
+        };
+        body.push_str(&format!("</dict><key>RunAtLoad</key><{}/><key>KeepAlive</key>{keep_alive}<key>ThrottleInterval</key><integer>1</integer><key>StandardOutPath</key><string>{}</string><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",s.enabled,xml(&root.join(format!("{}.stdout.log",record.label)).to_string_lossy()),xml(&root.join(format!("{}.stderr.log",record.label)).to_string_lossy())));
         Ok(body)
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
@@ -422,7 +441,11 @@ fn running(record: &Record) -> Result<bool> {
             &["print", &format!("{}/{}", domain(record), record.label)],
         )?;
         Ok(result.status.success()
-            && String::from_utf8_lossy(&result.stdout).contains("state = running"))
+            && String::from_utf8_lossy(&result.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("state = "))
+                == Some("state = running"))
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
@@ -463,7 +486,12 @@ fn control(record: &Record, action: &str) -> Result<()> {
         let result = match action {
             "reload" => return Ok(()),
             "start" | "restart" => {
-                let _ = manager(record, &["enable", &target])?;
+                if !manager(record, &["enable", &target])?.status.success() {
+                    return Err(error(
+                        "service.enablement",
+                        "Could not enable the explicitly requested job",
+                    ));
+                }
                 if !manager(record, &["print", &target])?.status.success()
                     && !manager(record, &["bootstrap", &domain(record), path])?
                         .status
@@ -471,7 +499,11 @@ fn control(record: &Record, action: &str) -> Result<()> {
                 {
                     return Err(error("service.manager", "launchd bootstrap failed"));
                 }
-                manager(record, &["kickstart", "-k", &target])?
+                if action == "restart" {
+                    manager(record, &["kickstart", "-k", &target])?
+                } else {
+                    manager(record, &["kickstart", &target])?
+                }
             }
             "stop" => {
                 let result = manager(record, &["bootout", &target])?;
@@ -491,8 +523,16 @@ fn control(record: &Record, action: &str) -> Result<()> {
                 "launchd action failed; inspect service status/logs",
             ));
         }
-        if action == "start" && !record.spec.enabled {
-            let _ = manager(record, &["disable", &target])?;
+        if matches!(action, "start" | "restart") && !record.spec.enabled {
+            // launchd startup is asynchronous. Restore the persistent disabled
+            // override only after the explicitly requested process is ready.
+            verify_running(record, true)?;
+            if !manager(record, &["disable", &target])?.status.success() {
+                return Err(error(
+                    "service.enablement",
+                    "Could not restore disabled-at-login intent",
+                ));
+            }
         }
     }
     Ok(())
@@ -527,13 +567,48 @@ fn verify_running(record: &Record, expected: bool) -> Result<()> {
             if Instant::now() > deadline {
                 return Err(error(
                     "service.readiness",
-                    "Service readiness did not return HTTP 2xx before timeout",
+                    &format!(
+                        "Service readiness did not return HTTP 2xx before timeout; native observation: {}",
+                        native_inventory(record.spec.scope, Some(&record.label))
+                            .unwrap_or(Value::Null)
+                    ),
                 ));
             }
             std::thread::sleep(Duration::from_millis(100));
         }
     }
     Ok(())
+}
+
+fn enabled(record: &Record) -> Result<Option<bool>> {
+    if !record.path.exists() {
+        return Ok(None);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let result = manager(
+            record,
+            &["is-enabled", &format!("{}.service", record.label)],
+        )?;
+        Ok(match String::from_utf8_lossy(&result.stdout).trim() {
+            "enabled" | "enabled-runtime" => Some(true),
+            "disabled" => Some(false),
+            _ => None,
+        })
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let result = manager(record, &["print-disabled", &domain(record)])?;
+        if !result.status.success() {
+            return Err(error(
+                "service.enablement",
+                "Could not inspect launchd enablement",
+            ));
+        }
+        let text = String::from_utf8_lossy(&result.stdout);
+        let disabled = format!("\"{}\" => true", record.label);
+        Ok(Some(!text.contains(&disabled)))
+    }
 }
 
 fn verify_definition(record: &Record) -> Result<String> {
@@ -609,17 +684,19 @@ fn restore(root: &Path, j: &mut Journal) -> Result<()> {
         .iter()
         .find(|r| r.spec.id == j.record.spec.id)
     {
+        let mut restored = old.clone();
+        restored.spec.enabled = j.before_enabled.unwrap_or(old.spec.enabled);
         control(
-            old,
-            if old.spec.enabled {
+            &restored,
+            if restored.spec.enabled {
                 "enable"
             } else {
                 "disable"
             },
         )?;
         if j.was_running {
-            control(old, "start")?;
-            verify_running(old, true)?;
+            control(&restored, "start")?;
+            verify_running(&restored, true)?;
         }
     }
     managed::publish(&root.join("services.json"), Some(&serialize(&j.old)?))?;
@@ -630,7 +707,138 @@ fn restore(root: &Path, j: &mut Journal) -> Result<()> {
 type Checkpoint<'a> = &'a mut dyn FnMut(&str) -> Result<()>;
 
 pub fn run(root: PathBuf, command: &ServiceCommand) -> Result<(Value, bool)> {
+    if let ServiceCommand::Discover { scope } = command {
+        return Ok((native_inventory(*scope, None)?, false));
+    }
+    if let ServiceCommand::InspectNative { name, scope } = command {
+        return Ok((native_inventory(*scope, Some(name))?, false));
+    }
     run_internal(root, command, None)
+}
+
+fn native_inventory(scope: Scope, name: Option<&str>) -> Result<Value> {
+    if let Some(name) = name
+        && (name.is_empty()
+            || name.len() > 256
+            || name.starts_with('-')
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"_.@:-".contains(&b)))
+    {
+        return Err(error("service.native_id", "Invalid native service name"));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let mut cmd = Command::new("systemctl");
+        if scope == Scope::User {
+            cmd.arg("--user");
+        }
+        if let Some(name) = name {
+            cmd.args([
+                "show",
+                "--property=Id,LoadState,ActiveState,SubState,UnitFileState",
+                "--",
+                name,
+            ]);
+            let result = executor::run(&mut cmd, Duration::from_secs(10), 1024 * 1024)?;
+            if !result.status.success() {
+                return Err(error(
+                    "service.native_unavailable",
+                    "Native service inspection failed",
+                ));
+            }
+            let fields = String::from_utf8_lossy(&result.stdout)
+                .lines()
+                .filter_map(|line| {
+                    line.split_once('=')
+                        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                })
+                .collect::<BTreeMap<_, _>>();
+            Ok(json!({"native":fields,"ownership":"external","scope":scope}))
+        } else {
+            cmd.args([
+                "list-units",
+                "--type=service",
+                "--all",
+                "--no-pager",
+                "--output=json",
+            ]);
+            let result = executor::run(&mut cmd, Duration::from_secs(10), 4 * 1024 * 1024)?;
+            if !result.status.success() {
+                return Err(error(
+                    "service.native_unavailable",
+                    "Native service enumeration failed",
+                ));
+            }
+            let native = config::strict_json(&result.stdout)?;
+            Ok(json!({"native":native,"ownership":"external","scope":scope}))
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if scope == Scope::System && unsafe { libc::geteuid() } != 0 {
+            return Err(error(
+                "service.privilege",
+                "System launchd discovery requires a root invocation",
+            ));
+        }
+        if let Some(name) = name {
+            let domain = if scope == Scope::System {
+                "system".into()
+            } else {
+                format!("gui/{}", unsafe { libc::geteuid() })
+            };
+            let result = executor::run(
+                Command::new("launchctl").args(["print", &format!("{domain}/{name}")]),
+                Duration::from_secs(10),
+                1024 * 1024,
+            )?;
+            if !result.status.success() {
+                return Err(error(
+                    "service.native_unavailable",
+                    "Native service inspection failed",
+                ));
+            }
+            let fields = String::from_utf8_lossy(&result.stdout)
+                .lines()
+                .filter_map(|line| {
+                    let (k, v) = line.trim().split_once(" = ")?;
+                    if matches!(k, "state" | "pid" | "last exit code") {
+                        Some((k.to_owned(), v.to_owned()))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<BTreeMap<_, _>>();
+            Ok(json!({"name":name,"native":fields,"ownership":"external","scope":scope}))
+        } else {
+            let result = executor::run(
+                Command::new("launchctl").arg("list"),
+                Duration::from_secs(10),
+                1024 * 1024,
+            )?;
+            if !result.status.success() {
+                return Err(error(
+                    "service.native_unavailable",
+                    "Native service enumeration failed",
+                ));
+            }
+            let rows = String::from_utf8_lossy(&result.stdout)
+                .lines()
+                .skip(1)
+                .take(10000)
+                .filter_map(|line| {
+                    let p = line.split_whitespace().collect::<Vec<_>>();
+                    if p.len() == 3 {
+                        Some(json!({"pid":p[0],"last_exit":p[1],"name":p[2]}))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(json!({"native":rows,"ownership":"external","scope":scope}))
+        }
+    }
 }
 
 pub fn run_tracked(
@@ -678,6 +886,7 @@ fn run_internal(
             || crate::transport::fingerprint(&registry)
                 != crate::transport::fingerprint(&original.next)
             || Some(running(&original.record)?) != original.after_running
+            || enabled(&original.record)? != original.after_enabled
         {
             return Err(error(
                 "service.drift",
@@ -755,7 +964,7 @@ fn run_internal(
         })?;
         verify_definition(&r)?;
         return Ok((
-            json!({"id":id,"scope":r.spec.scope,"native_id":r.label,"enabled":r.spec.enabled,"running":running(&r)?,"executable":r.spec.executable,"working_directory":r.spec.working_directory,"ready_url":r.spec.ready_url}),
+            json!({"id":id,"scope":r.spec.scope,"native_id":r.label,"enabled":r.spec.enabled,"native_enabled":enabled(&r)?,"running":running(&r)?,"executable":r.spec.executable,"working_directory":r.spec.working_directory,"ready_url":r.spec.ready_url}),
             false,
         ));
     }
@@ -814,6 +1023,11 @@ fn run_internal(
     } else {
         false
     };
+    let before_enabled = if old.is_some() {
+        enabled(&record)?
+    } else {
+        None
+    };
     if record.spec.scope == Scope::System && unsafe { libc::geteuid() } != 0 {
         return Err(error(
             "service.privilege",
@@ -864,6 +1078,8 @@ fn run_internal(
         next,
         was_running,
         after_running: None,
+        before_enabled,
+        after_enabled: None,
         reverses: None,
     };
     if serialize(&journal.next)?.len() > config::MAX_CONFIG
@@ -898,7 +1114,11 @@ fn run_internal(
         control(&desired, "reload")?;
         match command {
             ServiceCommand::Start { .. } | ServiceCommand::Restart { .. } => {
-                control(&desired, if was_running { "restart" } else { "start" })?;
+                if matches!(command, ServiceCommand::Restart { .. }) {
+                    control(&desired, "restart")?;
+                } else if !was_running {
+                    control(&desired, "start")?;
+                }
                 verify_running(&desired, true)?;
             }
             ServiceCommand::Stop { .. } => {
@@ -935,6 +1155,7 @@ fn run_internal(
             Some(&serialize(&journal.next)?),
         )?;
         journal.after_running = Some(running(&desired)?);
+        journal.after_enabled = enabled(&desired)?;
         journal.phase = "verified".into();
         record_journal(&root, &journal)
     })();
