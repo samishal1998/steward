@@ -11,15 +11,22 @@ import time
 import urllib.request
 import uuid
 import socket
+import fcntl
 
 with tempfile.TemporaryDirectory(prefix='steward-launchd-probe-') as folder:
     root=Path(folder);label='steward-probe-'+uuid.uuid4().hex;domain=f'gui/{os.getuid()}';target=domain+'/'+label
+    (root/'state').mkdir(mode=0o700)
+    state_lock=(root/'state/lock').open('w+')
+    fcntl.flock(state_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     definition=Path.home()/'Library/LaunchAgents'/f'{label}.plist';definition.parent.mkdir(parents=True,exist_ok=True)
-    payload={'Label':label,'ProgramArguments':[sys.executable,'-m','http.server',str(port),'--bind','127.0.0.1'],'WorkingDirectory':str(root),'EnvironmentVariables':{},'RunAtLoad':False,'KeepAlive':False,'ThrottleInterval':1,'StandardOutPath':str(root/'stdout.log'),'StandardErrorPath':str(root/'stderr.log')}
+    payload={'Label':label,'ProgramArguments':[sys.executable,'-m','http.server',str(port),'--bind','127.0.0.1'],'WorkingDirectory':str(root),'EnvironmentVariables':{},'RunAtLoad':False,'KeepAlive':False,'ThrottleInterval':1,'StandardOutPath':str(root/'state/stdout.log'),'StandardErrorPath':str(root/'state/stderr.log')}
     definition.write_bytes(plistlib.dumps(payload));definition.chmod(0o600)
     def ctl(*args):
-        result=subprocess.run(['launchctl',*args],capture_output=True,text=True,timeout=10)
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+            process=subprocess.Popen(['launchctl',*args],stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,process_group=0)
+            process.wait(timeout=10);stdout.seek(0);stderr.seek(0)
+            result=subprocess.CompletedProcess(args,process.returncode,stdout.read(1024*1024).decode(),stderr.read(1024*1024).decode())
         if result.returncode:print(args,result.returncode,result.stderr[:1000])
         return result
     try:
@@ -44,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix='steward-launchd-probe-') as folder:
                         subprocess.run(['lsof','-a','-p',fields['pid'],'-iTCP','-n','-P'],timeout=5)
             time.sleep(1)
         for name in ('stdout.log','stderr.log'):
-            path=root/name
+            path=root/'state'/name
             if path.exists():
                 with path.open('rb') as stream:print(name,stream.read(4096).decode(errors='replace'))
         if not ready:raise RuntimeError('Native launchd Python readiness failed independently of Steward')
