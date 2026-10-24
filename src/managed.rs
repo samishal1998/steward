@@ -1223,6 +1223,7 @@ fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
         let tls = !matches!(receipt.spec.tls.mode, TlsMode::Http);
         let mut builder = reqwest::blocking::Client::builder()
             .no_proxy()
+            .tls_built_in_root_certs(tls && !matches!(receipt.spec.tls.mode, TlsMode::Internal))
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(2))
             .timeout(Duration::from_secs(4))

@@ -222,6 +222,9 @@ pub fn fetch(binding: &Binding) -> Result<Responses> {
 fn live_client(binding: &Binding) -> Result<(Client, String, Option<HeaderValue>)> {
     let mut builder = Client::builder()
         .no_proxy()
+        .tls_built_in_root_certs(
+            reqwest::Url::parse(&binding.endpoint).is_ok_and(|u| u.scheme() == "https"),
+        )
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(12));

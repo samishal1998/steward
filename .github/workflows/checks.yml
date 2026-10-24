@@ -50,6 +50,9 @@ jobs:
         run: |
           python3 -B scripts/live_services.py --binary target/debug/steward
           python3 -B scripts/live_stack_setup.py --binary target/debug/steward
+      - name: Measure macOS plaintext client startup
+        if: runner.os == 'macOS' && always()
+        run: cargo +1.98.0 run --locked --example tls_root_timing
       - name: Interactive terminal acceptance
         run: python3 -B scripts/live_tui.py --binary target/debug/steward
       - name: Docker controller and container target acceptance

@@ -372,7 +372,10 @@ fn record(root: &Path, owner: &str, spec: Spec) -> Result<Record> {
         .ok_or_else(|| error("service.home", "HOME is required"))?;
     #[cfg(target_os = "linux")]
     let path = if spec.scope == Scope::User {
-        home.join(".config/systemd/user")
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".config"))
+            .join("systemd/user")
             .join(format!("{label}.service"))
     } else {
         PathBuf::from("/etc/systemd/system").join(format!("{label}.service"))
@@ -392,6 +395,12 @@ fn record(root: &Path, owner: &str, spec: Spec) -> Result<Record> {
         label,
         fingerprint: String::new(),
     };
+    if !r.path.is_absolute() {
+        return Err(error(
+            "service.path",
+            "Native configuration directory must be absolute",
+        ));
+    }
     r.fingerprint = transport::fingerprint(&definition(&r, root)?);
     Ok(r)
 }
@@ -569,23 +578,33 @@ fn verify_running(record: &Record, expected: bool) -> Result<()> {
     if expected && let Some(url) = &record.spec.ready_url {
         let client = reqwest::blocking::Client::builder()
             .no_proxy()
+            .tls_built_in_root_certs(config::http_url(url)?.scheme() == "https")
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(2))
             .build()
             .map_err(|_| error("service.readiness", "Could not create readiness client"))?;
         loop {
-            if client
-                .get(url)
-                .send()
-                .is_ok_and(|r| r.status().is_success())
-            {
+            let response = client.get(url).send();
+            if response.as_ref().is_ok_and(|r| r.status().is_success()) {
                 break;
             }
+            let failure = match response {
+                Ok(r) => format!("HTTP {}", r.status().as_u16()),
+                Err(e) => {
+                    if e.is_timeout() {
+                        "request timeout".into()
+                    } else if e.is_connect() {
+                        "connection failure".into()
+                    } else {
+                        "request failed".into()
+                    }
+                }
+            };
             if Instant::now() > deadline {
                 return Err(error(
                     "service.readiness",
                     &format!(
-                        "Service readiness did not return HTTP 2xx before timeout; native observation: {}",
+                        "Service readiness did not return HTTP 2xx before timeout ({failure}); native observation: {}",
                         native_inventory(record.spec.scope, Some(&record.label))
                             .unwrap_or(Value::Null)
                     ),
