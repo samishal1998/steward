@@ -19,7 +19,8 @@ def exercise(binary):
         try:
             cli('proxies','install','edge','--engine','caddy','--version','2.11.7','--listen',f'127.0.0.1:{web}','--admin',f'127.0.0.1:{admin}')
             stack=root/'stack.json'
-            spec={'id':'webapp','scope':'user','executable':sys.executable,'args':['-m','http.server',str(backend),'--bind','127.0.0.1'],'working_directory':str(root),'environment':{},'enabled':False,'restart':False,'ready_url':f'http://127.0.0.1:{backend}/'}
+            server=Path(__file__).resolve().parents[1]/'examples/static-server.py'
+            spec={'id':'webapp','scope':'user','executable':sys.executable,'args':[str(server),'--port',str(backend),'--bind','127.0.0.1'],'working_directory':str(root),'environment':{},'enabled':False,'restart':False,'ready_url':f'http://127.0.0.1:{backend}/'}
             stack.write_text(json.dumps({'schema_version':'1','id':'demo','scope':'user','services':[spec],'routes':[{'spec':{'id':'app','proxy':'edge','hostname':'app.localhost','upstream':{'url':f'http://127.0.0.1:{backend}'},'enabled':True,'tls':{'mode':'http'}},'depends_on':['webapp']}]}))
             cli('up','--file',str(stack));assert request(f'http://127.0.0.1:{web}/','app.localhost')[0]
             before=(state/'proxies/edge/proxy.json').read_bytes()
@@ -37,7 +38,7 @@ def exercise(binary):
             cli('up','--file',str(stack));assert request(f'http://127.0.0.1:{web}/','app.localhost')[0]
             cli('down','demo','--remove-services');assert not any(s['id']=='webapp' for s in cli('services','list')['data'])
             interrupted=root/'interrupted.json'
-            slow={**spec,'id':'interrupted','args':['-m','http.server',str(port()),'--bind','127.0.0.1'],'ready_url':'http://127.0.0.1:1/'}
+            slow={**spec,'id':'interrupted','args':[str(server),'--port',str(port()),'--bind','127.0.0.1'],'ready_url':'http://127.0.0.1:1/'}
             interrupted.write_text(json.dumps({'schema_version':'1','id':'interrupted','scope':'user','services':[slow],'routes':[]}))
             child=subprocess.Popen(prefix+['up','--file',str(interrupted),'--json'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             try:

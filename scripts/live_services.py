@@ -20,7 +20,8 @@ def exercise(binary):
             return json.loads(result.stdout)
         try:
             # Put --json before the explicit argv separator.
-            command=prefix+['--json','services','add','web','--executable',sys.executable,'--working-directory',str(root),'--ready-url',f'http://127.0.0.1:{listen}/','--start','--','-m','http.server',str(listen),'--bind','127.0.0.1']
+            server=Path(__file__).resolve().parents[1]/'examples/static-server.py'
+            command=prefix+['--json','services','add','web','--executable',sys.executable,'--working-directory',str(root),'--ready-url',f'http://127.0.0.1:{listen}/','--start','--',str(server),'--port',str(listen),'--bind','127.0.0.1']
             process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             externally_ready=False;started=time.monotonic();deadline=started+55;diagnosed=False
             while process.poll() is None and time.monotonic()<deadline:

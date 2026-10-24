@@ -6,7 +6,7 @@
     "id": "webapp",
     "scope": "user",
     "executable": "/absolute/path/to/python3",
-    "args": ["-m", "http.server", "3000", "--bind", "127.0.0.1"],
+    "args": ["/absolute/path/to/static-server.py", "--port", "3000", "--bind", "127.0.0.1"],
     "working_directory": "/absolute/path/to/site",
     "environment": {},
     "enabled": false,

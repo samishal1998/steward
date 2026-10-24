@@ -103,10 +103,15 @@ routes first. External executables stay with their original installer.
 
 ## General native services
 
+Use your own foreground application, or download the small
+[numeric-address static server](../../downloads/examples/static-server.py) for
+this example. It serves the selected working directory without a reverse-DNS
+lookup during startup.
+
 ```sh
 steward services add web --executable /absolute/python3 \
   --working-directory /absolute/site --ready-url http://127.0.0.1:3000/ \
-  --start -- -m http.server 3000 --bind 127.0.0.1
+  --start -- /absolute/static-server.py --port 3000 --bind 127.0.0.1
 steward services inspect web
 steward services enable web
 steward services restart web
@@ -136,7 +141,7 @@ array. Each route entry has a `spec` (the existing route specification) and a
 `depends_on` list of service IDs. Every dependency must provide a readiness URL.
 
 [Download the stack example](../../downloads/examples/service-stack.json), then
-replace its two absolute paths and select your registered proxy ID. The executable
+replace its three absolute paths and select your registered proxy ID. The executable
 and working directory must exist on the target where you run Steward.
 
 ```sh
