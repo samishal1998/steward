@@ -141,9 +141,10 @@ dest=pathlib.Path(a[a.index('--output')+1]); dest.write_bytes(file.read_bytes())
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.destination / "steward").exists())
 
-    def test_help_needs_no_download_and_fallback_matches_cargo(self):
-        import tomllib
-        self.assertEqual("v" + tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"], VERSION)
+    def test_help_needs_no_download_and_fallback_is_explicit(self):
+        # Development branches can be ahead of the published fallback. Keep the
+        # selector on a real downloadable release until a new tag is finalized.
+        self.assertIn("version=" + VERSION, (ROOT / "install.sh").read_text())
         result = subprocess.run(["sh", str(ROOT / "install.sh"), "--help"], text=True, capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0)
         self.assertIn("Usage:", result.stdout)

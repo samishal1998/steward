@@ -8,12 +8,23 @@ A standalone Rust CLI/TUI project for reverse-proxy routes and native services.
 Routes and services are independent capabilities; the OS supervises applications,
 and Steward has no required daemon or Apptrail dependency.
 
-**Current status: alpha.2 — direct HTTP route management plus native inventory.**
-Connect existing APIs through commands, then add/update/disable/enable/remove owned
-HTTP routes on explicitly authorized local Caddy JSON or Traefik watched-directory
-inputs. Saved-response inventory and manifest previews remain available. Broader
-TLS/setup, Docker-controller writes, native services, composition and TUI retain
-their documented gates.
+**Feature branch: 0.2.0-dev.1 management expansion.** Includes HTTP/TLS routes,
+Caddyfile/import and Docker-controller authority, saved plan/apply, proxy lifecycle,
+systemd/launchd services, SSH/container targets, composition, operation history/
+rollback, explicit adoption, dynamic completion, TUI and a versioned AppTrail export.
+The published installer still selects alpha.2 until a new release is finalized.
+See [feature coverage and evidence](docs/FEATURE_COMPLETION.md) and the
+[management guide](site/src/content/docs/guides/management.md).
+
+Build this branch to use the new workflows:
+
+```sh
+git clone --branch feature/complete-management https://github.com/samishal1998/steward.git
+cd steward
+cargo build --locked -j 1
+./target/debug/steward --version
+./target/debug/steward tui
+```
 
 **[Website & guides](https://samishal1998.github.io/steward/)** · **[Downloads](https://github.com/samishal1998/steward/releases)**
 

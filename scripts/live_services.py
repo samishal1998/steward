@@ -23,6 +23,9 @@ def exercise(binary):
             if result.returncode and sys.platform=='linux' and (state/'service-operation.json').exists():
                 label=json.loads((state/'service-operation.json').read_text())['record']['label']
                 subprocess.run(['journalctl','--user','--no-pager','--lines','20','--unit',label+'.service'],timeout=10)
+            if result.returncode and sys.platform=='darwin':
+                for path in state.glob('*.log'):
+                    with path.open('rb') as stream:print(path.name,stream.read(8192).decode(errors='replace'),file=sys.stderr)
             assert result.returncode==0,(result.stdout.decode(),result.stderr.decode())
             registry=json.loads((state/'services.json').read_text());native=Path(registry['services'][0]['path'])
             assert cli('services','inspect','web')['data']['running'] is True

@@ -139,7 +139,7 @@ pub fn executable(path: &Path) -> Result<PathBuf> {
     ))
 }
 
-fn lock_file(path: &Path) -> Result<File> {
+pub(crate) fn lock_file(path: &Path) -> Result<File> {
     regular(path)?;
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true).truncate(false);
@@ -1227,7 +1227,17 @@ fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
 
 impl Store {
     pub fn edit(&mut self, proxy: &str, edit: Edit) -> Result<Value> {
+        self.edit_tracked(proxy, edit, |_| Ok(()))
+    }
+
+    pub fn edit_tracked(
+        &mut self,
+        proxy: &str,
+        edit: Edit,
+        checkpoint: impl FnOnce(&str) -> Result<()>,
+    ) -> Result<Value> {
         let (journal, id) = self.prepare_edit(proxy, edit)?;
+        checkpoint(&journal.id)?;
         self.commit_edit(journal, &id)
     }
 

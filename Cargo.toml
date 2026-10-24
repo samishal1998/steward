@@ -1,9 +1,9 @@
 [package]
 name = "steward"
-version = "0.1.0-alpha.2"
+version = "0.2.0-dev.1"
 edition = "2024"
 rust-version = "1.89"
-description = "Native proxy inventory and recoverable local HTTP route commands"
+description = "Checked proxy routes, native services, and recoverable operations"
 repository = "https://github.com/samishal1998/steward"
 publish = false
 

@@ -12,6 +12,8 @@ pub(super) fn validate_tls(connection: &Connection, spec: &RouteSpec) -> Result<
             if encrypted != native_tls
                 || (encrypted
                     && server.pointer("/automatic_https/disable") == Some(&Value::Bool(true)))
+                || (!encrypted
+                    && server.pointer("/automatic_https/disable") != Some(&Value::Bool(true)))
             {
                 return Err(error(
                     "tls.listener",

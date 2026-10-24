@@ -149,6 +149,10 @@ pub fn start(state: Option<PathBuf>) -> io::Result<()> {
                         }
                         argv.extend(tokens);
                         match Cli::try_parse_from(argv) {
+                            Ok(cli) if cli.command.is_none() => {
+                                message =
+                                    "Enter a Steward command, or press Escape to return".into()
+                            }
                             Ok(cli)
                                 if !matches!(
                                     cli.command,

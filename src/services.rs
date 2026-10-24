@@ -627,7 +627,25 @@ fn restore(root: &Path, j: &mut Journal) -> Result<()> {
     record_journal(root, j)
 }
 
+type Checkpoint<'a> = &'a mut dyn FnMut(&str) -> Result<()>;
+
 pub fn run(root: PathBuf, command: &ServiceCommand) -> Result<(Value, bool)> {
+    run_internal(root, command, None)
+}
+
+pub fn run_tracked(
+    root: PathBuf,
+    command: &ServiceCommand,
+    checkpoint: &mut dyn FnMut(&str) -> Result<()>,
+) -> Result<(Value, bool)> {
+    run_internal(root, command, Some(checkpoint))
+}
+
+fn run_internal(
+    root: PathBuf,
+    command: &ServiceCommand,
+    checkpoint: Option<Checkpoint<'_>>,
+) -> Result<(Value, bool)> {
     let store = Store::open(root.clone())?;
     let registry = load(&root)?;
     let pending_path = root.join("service-operation.json");
@@ -859,6 +877,9 @@ pub fn run(root: PathBuf, command: &ServiceCommand) -> Result<(Value, bool)> {
             "Service registry/definition exceeds 1 MiB",
         ));
     }
+    if let Some(checkpoint) = checkpoint {
+        checkpoint(&journal.id)?;
+    }
     record_journal(&root, &journal)?;
     let result = (|| {
         journal.phase = "publishing".into();
@@ -999,11 +1020,31 @@ pub fn saved_specs(root: &Path) -> Result<Vec<Spec>> {
 }
 
 pub fn operation_summaries(root: &Path) -> Result<Vec<Value>> {
+    let active_path = root.join("service-operation.json");
+    let active = if managed::regular(&active_path)?.is_some() {
+        Some(config::load::<Journal>(
+            &active_path,
+            8 * config::MAX_CONFIG,
+        )?)
+    } else {
+        None
+    };
+    let summary = |j: &Journal| json!({"kind":"service","id":j.id,"service":j.record.spec.id,"phase":j.phase,"reverses":j.reverses});
+    let mut output = active.as_ref().map_or_else(Vec::new, |j| vec![summary(j)]);
     let directory = root.join("service-operations");
     if !directory.exists() {
-        return Ok(Vec::new());
+        return Ok(output);
     }
-    let mut output = Vec::new();
+    if fs::symlink_metadata(&directory)
+        .map_err(io_error)?
+        .file_type()
+        .is_symlink()
+    {
+        return Err(error(
+            "service.history",
+            "History directory must not be a symlink",
+        ));
+    }
     let mut count = 0;
     for entry in fs::read_dir(directory).map_err(io_error)? {
         count += 1;
@@ -1014,9 +1055,15 @@ pub fn operation_summaries(root: &Path) -> Result<Vec<Value>> {
             ));
         }
         let path = entry.map_err(io_error)?.path();
+        if active
+            .as_ref()
+            .is_some_and(|j| path.file_stem().and_then(|s| s.to_str()) == Some(&j.id))
+        {
+            continue;
+        }
         managed::regular(&path)?;
         let j: Journal = config::load(&path, 8 * config::MAX_CONFIG)?;
-        output.push(json!({"kind":"service","id":j.id,"service":j.record.spec.id,"phase":j.phase,"reverses":j.reverses}));
+        output.push(summary(&j));
     }
     Ok(output)
 }

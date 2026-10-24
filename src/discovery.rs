@@ -32,6 +32,17 @@ pub fn inspect_file(
         values.insert("/config/".into(), root.clone());
     } else {
         let empty = serde_json::Map::new();
+        if !root.is_object()
+            || root.get("http").is_some_and(|v| !v.is_object())
+            || ["/http/routers", "/http/services"]
+                .iter()
+                .any(|p| root.pointer(p).is_some_and(|v| !v.is_object()))
+        {
+            return Err(crate::error::Diagnostic::new(
+                "discovery.invalid_file",
+                "Expected native Traefik HTTP/router/service maps",
+            ));
+        }
         let routers = root
             .pointer("/http/routers")
             .and_then(Value::as_object)
@@ -40,6 +51,16 @@ pub fn inspect_file(
             .pointer("/http/services")
             .and_then(Value::as_object)
             .unwrap_or(&empty);
+        if routers
+            .values()
+            .chain(services.values())
+            .any(|v| !v.is_object())
+        {
+            return Err(crate::error::Diagnostic::new(
+                "discovery.invalid_file",
+                "Native router/service definitions must be objects",
+            ));
+        }
         let mut entries = std::collections::BTreeSet::new();
         let mut rows = Vec::new();
         for (name, router) in routers {

@@ -4,7 +4,7 @@ const MAX_ENTRIES: usize = 1024;
 const MAX_BYTES: u64 = 256 * 1024 * 1024;
 
 fn summary(j: &Journal) -> Value {
-    json!({"id":j.id,"phase":j.phase,"proxy":j.connection.binding.id,"reverses":j.reverses,
+    json!({"kind":"route","id":j.id,"phase":j.phase,"proxy":j.connection.binding.id,"reverses":j.reverses,
         "before_fingerprint":fingerprint(&j.before),"after_fingerprint":fingerprint(&j.after),
         "routes_before":own(&j.old,&j.connection.binding.id).iter().map(|r| &r.spec.id).collect::<Vec<_>>(),
         "routes_after":own(&j.desired,&j.connection.binding.id).iter().map(|r| &r.spec.id).collect::<Vec<_>>()})

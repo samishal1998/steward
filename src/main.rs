@@ -35,8 +35,8 @@ use model::{Binding, Engine, Inventory, RouteSpec, TlsMode, TlsPolicy, Upstream}
 #[derive(Parser)]
 #[command(
     version,
-    about = "Inspect proxies and manage explicitly connected HTTP routes",
-    long_about = "Steward: native Caddy/Traefik inventory, route previews, and recoverable HTTP route changes through explicitly connected local file-backed proxies. General native services, TLS setup, Docker-controller writes, and TUI remain planned."
+    about = "Checked proxy routes, native services, and recoverable operations",
+    long_about = "Steward: native Caddy/Traefik discovery, explicit file/controller authority, HTTP/TLS routes, checked plans, systemd/launchd services, SSH/container targets, composition and an interactive TUI. External resources stay external until explicit checked adoption."
 )]
 struct Cli {
     #[arg(
@@ -269,7 +269,7 @@ enum RouteCommand {
         #[arg(
             long,
             value_enum,
-            help = "Explicit frontend policy; writable mode currently supports http"
+            help = "Explicit frontend policy; internal TLS requires a registered CA, public TLS requires native issuance setup"
         )]
         tls: TlsMode,
     },
@@ -456,8 +456,7 @@ fn run(cli: &Cli) -> Result<Envelope> {
             diagnostics: Vec::new(),
         });
     }
-    // Capability-only paths are independent: no configuration load, network client,
-    // proxy probing, or Apptrail process starts for unavailable service/apply commands.
+    // Service and apply validation remain independent from legacy binding profiles.
     if let Some(Command::Apply { plan, yes }) = &cli.command {
         if cli.config.is_some() || !yes || plan.is_none() {
             return Err(Diagnostic::new(

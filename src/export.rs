@@ -12,10 +12,19 @@ use std::path::{Path, PathBuf};
 
 pub fn inventory_export(root: PathBuf, output: Option<&Path>) -> Result<Value> {
     let book = { Store::open(root.clone())?.book.clone() };
+    let specs = services::saved_specs(&root)?;
+    let revision = transport::fingerprint(&(&book, &specs));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
     let mut resources = Vec::new();
     let mut sources = Vec::new();
     let mut complete = true;
     for connection in &book.connections {
+        if std::time::Instant::now() >= deadline {
+            return Err(Diagnostic::new(
+                "export.timeout",
+                "Inventory export exceeded its aggregate deadline",
+            ));
+        }
         let observed = inventory::inspect(&connection.binding, Scope::User);
         let source_complete = observed
             .as_ref()
@@ -42,7 +51,13 @@ pub fn inventory_export(root: PathBuf, output: Option<&Path>) -> Result<Value> {
             resources.push(json!({"kind":"route","id":receipt.spec.id,"binding":receipt.spec.proxy,"scope":"user","name":receipt.spec.id,"enabled":receipt.spec.enabled,"ownership":"owned_definition","observed":if observed_owned{"present"}else if source_complete{"absent"}else{"unknown"},"public_url":url}));
         }
     }
-    for spec in services::saved_specs(&root)? {
+    for spec in specs {
+        if std::time::Instant::now() >= deadline {
+            return Err(Diagnostic::new(
+                "export.timeout",
+                "Inventory export exceeded its aggregate deadline",
+            ));
+        }
         let observed = services::run(
             root.clone(),
             &ServiceCommand::Inspect {
@@ -54,7 +69,7 @@ pub fn inventory_export(root: PathBuf, output: Option<&Path>) -> Result<Value> {
         sources.push(json!({"id":spec.id,"kind":"service","complete":available}));
         resources.push(json!({"kind":"service","id":spec.id,"binding":"","scope":spec.scope,"name":spec.id,"enabled":spec.enabled,"ownership":"owned_definition","observed":observed.ok().map_or("unknown",|(v,_)|if v["running"]==true{"running"}else{"stopped"}),"public_url":null}));
     }
-    let value = json!({"schema_version":"1","kind":"steward.inventory","host_id":book.owner,"revision":transport::fingerprint(&book),"observed_at":transport::now().parse::<u64>().unwrap_or_default(),"complete":complete,"sources":sources,"resources":resources});
+    let value = json!({"schema_version":"1","kind":"steward.inventory","host_id":book.owner,"revision":revision,"observed_at":transport::now().parse::<u64>().unwrap_or_default(),"complete":complete,"sources":sources,"resources":resources});
     if let Some(path) = output {
         if !path.is_absolute() {
             return Err(Diagnostic::new(

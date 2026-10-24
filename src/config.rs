@@ -100,7 +100,7 @@ pub fn load_manifest(path: &Path) -> Result<Manifest> {
     if !manifest.services.is_empty() {
         return Err(Diagnostic::new(
             "capability.unsupported",
-            "General service planning is a later milestone; no proxy was contacted",
+            "Route manifests do not contain services; use services commands or up --file for composition",
         ));
     }
     if manifest.routes.len() > 256 {

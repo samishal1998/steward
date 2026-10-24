@@ -14,7 +14,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Stack {
     schema_version: String,
@@ -25,7 +25,7 @@ struct Stack {
     #[serde(default)]
     routes: Vec<Route>,
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Route {
     spec: RouteSpec,
@@ -39,19 +39,22 @@ struct Receipt {
     created_services: Vec<String>,
     published_routes: Vec<(String, String)>,
     phase: String,
+    #[serde(default)]
+    pending_service: Option<(String, String, bool)>,
+    #[serde(default)]
+    pending_route: Option<(String, String, String)>,
 }
 
 fn error(code: &str, message: &str) -> Diagnostic {
     Diagnostic::new(code, message)
 }
 fn save(path: &Path, receipt: &Receipt) -> Result<()> {
-    managed::publish(
-        path,
-        Some(
-            &serde_json::to_string_pretty(receipt)
-                .map_err(|_| error("composition.state", "Could not encode stack receipt"))?,
-        ),
-    )
+    let text = serde_json::to_string_pretty(receipt)
+        .map_err(|_| error("composition.state", "Could not encode stack receipt"))?;
+    if text.len() > config::MAX_CONFIG {
+        return Err(error("composition.limit", "Stack receipt exceeds 1 MiB"));
+    }
+    managed::publish(path, Some(&text))
 }
 
 pub fn service_args(spec: &Spec, start: bool) -> ServiceArgs {
@@ -74,7 +77,7 @@ pub fn service_args(spec: &Spec, start: bool) -> ServiceArgs {
 }
 
 pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
-    let stack: Stack = config::load(path, config::MAX_CONFIG)?;
+    let mut stack: Stack = config::load(path, config::MAX_CONFIG)?;
     config::version(&stack.schema_version)?;
     config::resource_id(&stack.id)?;
     if stack.scope != Scope::User || stack.services.len() > 32 || stack.routes.len() > 128 {
@@ -94,9 +97,9 @@ pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
         }
     }
     let mut route_ids = BTreeSet::new();
-    for route in &stack.routes {
-        let mut spec = route.spec.clone();
-        config::validate_route(&mut spec)?;
+    for route in &mut stack.routes {
+        config::validate_route(&mut route.spec)?;
+        let spec = &route.spec;
         if !route_ids.insert((spec.proxy.clone(), spec.id.clone())) {
             return Err(error("composition.route", "Duplicate route ID"));
         }
@@ -115,13 +118,20 @@ pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
     }
     let directory = root.join("stacks");
     let state = directory.join(format!("{}.json", stack.id));
+    drop(Store::open(root.clone())?);
+    let _guard = managed::lock_file(&root.join(format!("stack-{}.lock", stack.id)))?;
+    let mut retained = Vec::new();
     {
         let _lock = Store::open(root.clone())?;
         if managed::regular(&state)?.is_some() {
-            return Err(error(
-                "composition.exists",
-                "A stack receipt already exists; run down before replacing it",
-            ));
+            let previous: Receipt = config::load(&state, config::MAX_CONFIG)?;
+            if previous.phase != "down" || fingerprint(&previous.stack) != fingerprint(&stack) {
+                return Err(error(
+                    "composition.exists",
+                    "Run down first; changing a retained stack specification requires a new stack ID",
+                ));
+            }
+            retained = previous.created_services;
         }
         fs::create_dir_all(&directory)
             .map_err(|_| error("composition.io", "Could not create stack receipt directory"))?;
@@ -140,29 +150,46 @@ pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
     let mut receipt = Receipt {
         schema_version: "1".into(),
         stack,
-        created_services: Vec::new(),
+        created_services: retained,
         published_routes: Vec::new(),
         phase: "starting".into(),
+        pending_service: None,
+        pending_route: None,
     };
     save(&state, &receipt)?;
     let execute = (|| {
-        for spec in &receipt.stack.services {
-            if existing.iter().any(|s| s.id == spec.id) {
-                services::run(
-                    root.clone(),
-                    &ServiceCommand::Start {
-                        id: spec.id.clone(),
-                    },
-                )?;
+        for spec in receipt.stack.services.clone() {
+            let created = !existing.iter().any(|s| s.id == spec.id);
+            let command = if created {
+                ServiceCommand::Add(service_args(&spec, true))
             } else {
-                services::run(root.clone(), &ServiceCommand::Add(service_args(spec, true)))?;
+                ServiceCommand::Start {
+                    id: spec.id.clone(),
+                }
+            };
+            services::run_tracked(root.clone(), &command, &mut |operation| {
+                if !created
+                    && !services::saved_specs(&root)?
+                        .iter()
+                        .any(|s| s.id == spec.id && fingerprint(s) == fingerprint(&spec))
+                {
+                    return Err(error(
+                        "composition.service_drift",
+                        "Service changed during composition preparation",
+                    ));
+                }
+                receipt.pending_service = Some((spec.id.clone(), operation.into(), created));
+                save(&state, &receipt)
+            })?;
+            if created {
                 receipt.created_services.push(spec.id.clone());
-                save(&state, &receipt)?;
             }
+            receipt.pending_service = None;
+            save(&state, &receipt)?;
         }
         receipt.phase = "publishing_routes".into();
         save(&state, &receipt)?;
-        for route in &receipt.stack.routes {
+        for route in receipt.stack.routes.clone() {
             let mut store = Store::open(root.clone())?;
             if store
                 .book
@@ -175,10 +202,22 @@ pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
                     "Stack publication requires a new route ID; existing routes are not taken over",
                 ));
             }
-            store.edit(&route.spec.proxy, Edit::Add(route.spec.clone()))?;
+            store.edit_tracked(
+                &route.spec.proxy,
+                Edit::Add(route.spec.clone()),
+                |operation| {
+                    receipt.pending_route = Some((
+                        route.spec.proxy.clone(),
+                        route.spec.id.clone(),
+                        operation.into(),
+                    ));
+                    save(&state, &receipt)
+                },
+            )?;
             receipt
                 .published_routes
                 .push((route.spec.proxy.clone(), route.spec.id.clone()));
+            receipt.pending_route = None;
             save(&state, &receipt)?;
         }
         receipt.phase = "verified".into();
@@ -196,9 +235,63 @@ pub fn up(root: PathBuf, path: &Path) -> Result<Value> {
 
 pub fn down(root: PathBuf, id: &str, remove_services: bool) -> Result<Value> {
     config::resource_id(id)?;
+    drop(Store::open(root.clone())?);
+    let _guard = managed::lock_file(&root.join(format!("stack-{id}.lock")))?;
     let path = root.join("stacks").join(format!("{id}.json"));
     let mut receipt: Receipt = config::load(&path, config::MAX_CONFIG)?;
     config::version(&receipt.schema_version)?;
+    if let Some((id, operation, created)) = receipt.pending_service.clone() {
+        let summaries = services::operation_summaries(&root)?;
+        let phase = summaries
+            .iter()
+            .find(|j| j["id"] == operation)
+            .and_then(|j| j["phase"].as_str());
+        match phase {
+            Some("verified") => {
+                if created && !receipt.created_services.contains(&id) {
+                    receipt.created_services.push(id);
+                }
+            }
+            Some("compensated") => {}
+            None if !services::saved_specs(&root)?.iter().any(|s| s.id == id) => {}
+            _ => {
+                return Err(error(
+                    "composition.pending",
+                    "Recover the recorded service operation before down",
+                ));
+            }
+        }
+        receipt.pending_service = None;
+        save(&path, &receipt)?;
+    }
+    if let Some((proxy, id, operation)) = receipt.pending_route.clone() {
+        let store = Store::open(root.clone())?;
+        let inspected = store.inspect_operation(&operation);
+        match inspected.as_ref().ok().and_then(|v| v["phase"].as_str()) {
+            Some("verified") => {
+                if !receipt
+                    .published_routes
+                    .contains(&(proxy.clone(), id.clone()))
+                {
+                    receipt.published_routes.push((proxy, id));
+                }
+            }
+            Some("compensated") => {}
+            None if !store
+                .book
+                .routes
+                .iter()
+                .any(|r| r.spec.proxy == proxy && r.spec.id == id) => {}
+            _ => {
+                return Err(error(
+                    "composition.pending",
+                    "Recover the recorded route operation before down",
+                ));
+            }
+        }
+        receipt.pending_route = None;
+        save(&path, &receipt)?;
+    }
     while let Some((proxy, id)) = receipt.published_routes.last().cloned() {
         let mut store = Store::open(root.clone())?;
         if let Some(current) = store

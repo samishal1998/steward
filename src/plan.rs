@@ -106,7 +106,7 @@ pub fn build(manifest: &Manifest, inventories: &[Inventory]) -> Result<Plan> {
         });
     }
     // A read channel is not proof of source authority. This is explicitly not an apply-ready plan.
-    diagnostics.push(Diagnostic::new("capability.apply_unavailable","Journaled writes, ownership receipts, and compatibility gates are not implemented; this plan cannot be applied"));
+    diagnostics.push(Diagnostic::new("capability.apply_unavailable","Profile-only previews are not apply-ready; register explicit writable connections and produce a managed plan without --config"));
     if !manifest.routes.is_empty() {
         diagnostics.push(Diagnostic::new("setup.authority_unverified","The selected runtime APIs do not prove an approved authoritative file/watcher integration"));
         diagnostics.push(Diagnostic::new("network.context_unverified","Upstream reachability has not been verified from the selected proxy runtime; no upstream probe was attempted"));
