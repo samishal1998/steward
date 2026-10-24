@@ -2,7 +2,7 @@ name: Rust checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/complete-management]
   pull_request:
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CARGO_BUILD_JOBS: '1'
     steps:
@@ -36,6 +36,22 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
         run: python3 -B scripts/live_route_smoke.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy" --traefik "$RUNNER_TEMP/steward-proxies/traefik"
+      - name: Caddyfile imports and internal HTTPS
+        run: |
+          python3 -B scripts/live_tls_files.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy"
+          python3 -B scripts/live_tls_native.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy" --traefik "$RUNNER_TEMP/steward-proxies/traefik"
+      - name: Prepare disposable Linux user supervisor
+        if: runner.os == 'Linux'
+        run: |
+          sudo loginctl enable-linger "$USER"
+          sudo systemctl start "user@$(id -u).service"
+          printf 'XDG_RUNTIME_DIR=/run/user/%s\nDBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%s/bus\n' "$(id -u)" "$(id -u)" >> "$GITHUB_ENV"
+      - name: Real native services and composition
+        run: |
+          python3 -B scripts/live_services.py --binary target/debug/steward
+          python3 -B scripts/live_stack_setup.py --binary target/debug/steward
+      - name: Interactive terminal acceptance
+        run: python3 -B scripts/live_tui.py --binary target/debug/steward
 
   msrv:
     runs-on: ubuntu-latest

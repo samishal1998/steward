@@ -46,25 +46,33 @@ fn json_inventory_is_single_document_and_retains_disabled_route() {
 }
 
 #[test]
-fn unavailable_service_and_apply_do_not_load_bad_config() {
+fn service_and_apply_guard_paths_do_not_load_bad_config() {
+    let directory = tempfile::tempdir().unwrap();
     for args in [
         vec!["service", "list", "--json"],
         vec!["apply", "--yes", "--json"],
     ] {
         let output = binary()
+            .arg("--state-dir")
+            .arg(directory.path().join("state"))
             .args(["--config", "/missing/never-read.yaml"])
-            .args(args)
+            .args(&args)
             .output()
             .unwrap();
-        assert_eq!(output.status.code(), Some(2));
+        assert_eq!(
+            output.status.code(),
+            Some(if args[0] == "apply" { 2 } else { 0 })
+        );
         let value: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(value["changed"], false);
-        assert!(
-            value["diagnostics"][0]["code"]
-                .as_str()
-                .unwrap()
-                .starts_with("capability.")
-        );
+        if args[0] == "apply" {
+            assert!(
+                value["diagnostics"][0]["code"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("plan.")
+            );
+        }
     }
 }
 

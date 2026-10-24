@@ -1,13 +1,23 @@
+mod bootstrap;
+mod completion;
+mod composition;
 mod config;
+mod discovery;
 mod error;
+mod executor;
+mod export;
 mod inventory;
 mod managed;
 mod model;
 mod plan;
+mod remote;
 mod rules;
+mod services;
 #[cfg(test)]
 mod tests;
 mod transport;
+mod tui;
+use services::ServiceCommand;
 
 use std::{
     io::{self, Write},
@@ -29,6 +39,27 @@ use model::{Binding, Engine, Inventory, RouteSpec, TlsMode, TlsPolicy, Upstream}
     long_about = "Steward: native Caddy/Traefik inventory, route previews, and recoverable HTTP route changes through explicitly connected local file-backed proxies. General native services, TLS setup, Docker-controller writes, and TUI remain planned."
 )]
 struct Cli {
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "container",
+        help = "Run Steward over SSH; paths and state belong to that host"
+    )]
+    ssh: Option<String>,
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "ssh",
+        help = "Run an installed Steward inside this Docker container"
+    )]
+    container: Option<String>,
+    #[arg(
+        long,
+        global = true,
+        default_value = "steward",
+        help = "Steward executable on the selected remote/container target"
+    )]
+    remote_bin: String,
     #[arg(long, global = true)]
     config: Option<PathBuf>,
     #[arg(
@@ -49,6 +80,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(about = "Export versioned redacted native observations for AppTrail")]
+    Export {
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    #[command(about = "Interactive Routes, Proxies, Services and Operations terminal")]
+    Tui,
+    Up {
+        #[arg(long)]
+        file: PathBuf,
+    },
+    Down {
+        id: String,
+        #[arg(long)]
+        remove_services: bool,
+    },
     #[command(name = "proxies", visible_alias = "proxy", subcommand)]
     Proxy(ProxyCommand),
     #[command(name = "routes", visible_alias = "route", subcommand)]
@@ -56,6 +103,8 @@ enum Command {
     #[command(about = "Generate a shell completion script without loading configuration")]
     Completions {
         shell: clap_complete::Shell,
+        #[arg(long, help = "Generate runtime completion with saved resource IDs")]
+        dynamic: bool,
     },
     #[command(subcommand)]
     Operations(OperationCommand),
@@ -63,6 +112,8 @@ enum Command {
     Plan {
         #[arg(long)]
         file: PathBuf,
+        #[arg(long, help = "Write an applicable managed plan to a new absolute path")]
+        out: Option<PathBuf>,
     },
     Apply {
         #[arg(long)]
@@ -70,12 +121,45 @@ enum Command {
         #[arg(long)]
         yes: bool,
     },
-    #[command(subcommand)]
+    #[command(name = "services", visible_alias = "service", subcommand)]
     Service(ServiceCommand),
 }
 
 #[derive(Subcommand)]
 enum ProxyCommand {
+    #[command(
+        about = "Inspect a native input as qualified offline evidence, without granting write authority"
+    )]
+    InspectFile {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long, value_enum)]
+        engine: Engine,
+        #[arg(long, default_value = "caddy")]
+        caddy_bin: PathBuf,
+    },
+    Install(bootstrap::SetupArgs),
+    Setup(bootstrap::SetupArgs),
+    Upgrade {
+        id: String,
+        #[arg(long)]
+        version: String,
+    },
+    Uninstall {
+        id: String,
+    },
+    Recover {
+        id: String,
+    },
+    #[command(
+        about = "Find native and known-label candidates without granting ownership or enabling APIs"
+    )]
+    Discover {
+        #[arg(long)]
+        docker: Option<String>,
+        #[arg(long)]
+        probe: bool,
+    },
     List,
     Inspect {
         id: String,
@@ -84,6 +168,17 @@ enum ProxyCommand {
         about = "Connect an authorized API; optional file authority enables local HTTP writes"
     )]
     Add(ConnectArgs),
+    #[command(about = "Replace a saved connection; owned routes prevent authority changes")]
+    Update(ConnectArgs),
+    Remove {
+        id: String,
+    },
+    #[command(
+        about = "Forget a connection and relinquish route ownership without changing native inputs"
+    )]
+    Detach {
+        id: String,
+    },
 }
 
 #[derive(Args)]
@@ -119,10 +214,44 @@ struct ConnectArgs {
     caddy_bin: PathBuf,
     #[arg(long)]
     auth_file: Option<PathBuf>,
+    #[arg(
+        long,
+        requires = "config_file",
+        help = "Use Caddyfile (with existing imports) rather than native JSON; --listener is a TCP listen address"
+    )]
+    caddyfile: bool,
+    #[arg(
+        long,
+        requires = "caddyfile",
+        help = "Publish a caddy-docker-proxy base file and wait for its controller; never write generated runtime JSON"
+    )]
+    docker_controller: bool,
+    #[arg(long)]
+    ca_file: Option<PathBuf>,
+    #[arg(long)]
+    cert_resolver: Option<String>,
+    #[arg(long, requires = "private_key")]
+    certificate: Option<PathBuf>,
+    #[arg(long, requires = "certificate")]
+    private_key: Option<PathBuf>,
 }
 #[derive(Subcommand)]
 enum RouteCommand {
     List,
+    #[command(
+        about = "Explicitly adopt a representable native route using its inspected fingerprint"
+    )]
+    Adopt {
+        id: String,
+        #[arg(long)]
+        proxy: String,
+        #[arg(long)]
+        native_id: String,
+        #[arg(long)]
+        expected_fingerprint: String,
+        #[arg(long)]
+        source: Option<PathBuf>,
+    },
     Inspect {
         #[arg(long)]
         proxy: String,
@@ -175,6 +304,15 @@ enum RouteCommand {
 #[derive(Subcommand)]
 enum OperationCommand {
     List,
+    Inspect {
+        id: String,
+    },
+    #[command(
+        about = "Reverse a verified operation only while state, source, and runtime still match"
+    )]
+    Rollback {
+        id: String,
+    },
     #[command(
         about = "Compensate an unfinished write while input/runtime fingerprints still match"
     )]
@@ -182,11 +320,6 @@ enum OperationCommand {
         id: String,
     },
 }
-#[derive(Subcommand)]
-enum ServiceCommand {
-    List,
-}
-
 #[derive(Serialize)]
 struct Envelope {
     schema_version: &'static str,
@@ -197,19 +330,170 @@ struct Envelope {
 }
 
 fn run(cli: &Cli) -> Result<Envelope> {
+    if let Some(Command::Operations(OperationCommand::Rollback { id })) = &cli.command
+        && id.len() == 16
+        && id.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        if root
+            .join("service-operations")
+            .join(format!("{id}.json"))
+            .exists()
+        {
+            let (data, changed) =
+                services::run(root, &ServiceCommand::Rollback { id: id.clone() })?;
+            return Ok(Envelope {
+                schema_version: "1",
+                status: "rolled_back",
+                changed,
+                data,
+                diagnostics: Vec::new(),
+            });
+        }
+    }
+    if let Some(Command::Proxy(ProxyCommand::InspectFile {
+        file,
+        engine,
+        caddy_bin,
+    })) = &cli.command
+    {
+        let data = json!(discovery::inspect_file(file, *engine, caddy_bin, "file")?);
+        return Ok(Envelope {
+            schema_version: "1",
+            status: "partial",
+            changed: false,
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
+    if let Some(Command::Export { out }) = &cli.command {
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        let data = export::inventory_export(root, out.as_deref())?;
+        return Ok(Envelope {
+            schema_version: "1",
+            status: if data["complete"] == true {
+                "observed"
+            } else {
+                "partial"
+            },
+            changed: out.is_some(),
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
+    if let Some(Command::Proxy(command)) = &cli.command
+        && matches!(
+            command,
+            ProxyCommand::Install(_)
+                | ProxyCommand::Setup(_)
+                | ProxyCommand::Upgrade { .. }
+                | ProxyCommand::Uninstall { .. }
+                | ProxyCommand::Recover { .. }
+        )
+    {
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        let data = match command {
+            ProxyCommand::Install(a) => bootstrap::setup(root, a, true)?,
+            ProxyCommand::Setup(a) => bootstrap::setup(root, a, false)?,
+            ProxyCommand::Upgrade { id, version } => bootstrap::upgrade(root, id, version)?,
+            ProxyCommand::Uninstall { id } => bootstrap::uninstall(root, id)?,
+            ProxyCommand::Recover { id } => bootstrap::recover(root, id)?,
+            _ => unreachable!(),
+        };
+        return Ok(Envelope {
+            schema_version: "1",
+            status: "applied",
+            changed: true,
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
+    if matches!(cli.command, Some(Command::Up { .. } | Command::Down { .. })) {
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        let data = match &cli.command {
+            Some(Command::Up { file }) => composition::up(root, file)?,
+            Some(Command::Down {
+                id,
+                remove_services,
+            }) => composition::down(root, id, *remove_services)?,
+            _ => unreachable!(),
+        };
+        return Ok(Envelope {
+            schema_version: "1",
+            status: "applied",
+            changed: true,
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
+    if let Some(Command::Proxy(ProxyCommand::Discover { docker, probe })) = &cli.command {
+        let data = discovery::discover(docker.as_deref(), *probe)?;
+        return Ok(Envelope {
+            schema_version: "1",
+            status: if data["complete"] == true {
+                "observed"
+            } else {
+                "partial"
+            },
+            changed: false,
+            data,
+            diagnostics: Vec::new(),
+        });
+    }
     // Capability-only paths are independent: no configuration load, network client,
     // proxy probing, or Apptrail process starts for unavailable service/apply commands.
-    if matches!(cli.command, Some(Command::Apply { .. })) {
-        return Err(Diagnostic::new(
-            "capability.apply_unavailable",
-            "Apply is not implemented; no plan was loaded and no mutation was attempted",
-        ));
+    if let Some(Command::Apply { plan, yes }) = &cli.command {
+        if cli.config.is_some() || !yes || plan.is_none() {
+            return Err(Diagnostic::new(
+                "plan.required",
+                "Use apply --plan FILE --yes with a managed saved plan and no --config override",
+            ));
+        }
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        let data = managed::Store::open(root)?.apply_manifest(plan.as_ref().expect("checked"))?;
+        let changed = data["operations"].as_array().is_some_and(|a| !a.is_empty());
+        return Ok(Envelope {
+            schema_version: "1",
+            status: "applied",
+            changed,
+            data,
+            diagnostics: Vec::new(),
+        });
     }
-    if matches!(cli.command, Some(Command::Service(_))) {
-        return Err(Diagnostic::new(
-            "capability.unsupported",
-            "General native service management is a later milestone; no proxy or Docker connection was initialized",
-        ));
+    if let Some(Command::Service(command)) = &cli.command {
+        let root = cli
+            .state_dir
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(managed::default_root)?;
+        let (data, changed) = services::run(root, command)?;
+        return Ok(Envelope {
+            schema_version: "1",
+            status: if changed { "applied" } else { "observed" },
+            changed,
+            data,
+            diagnostics: Vec::new(),
+        });
     }
     let managed_root = || {
         cli.state_dir
@@ -277,7 +561,13 @@ fn run(cli: &Cli) -> Result<Envelope> {
     if mutation.is_some()
         || matches!(
             cli.command,
-            Some(Command::Proxy(ProxyCommand::Add(_))) | Some(Command::Operations(_))
+            Some(Command::Proxy(
+                ProxyCommand::Add(_)
+                    | ProxyCommand::Update(_)
+                    | ProxyCommand::Remove { .. }
+                    | ProxyCommand::Detach { .. }
+            )) | Some(Command::Operations(_))
+                | Some(Command::Route(RouteCommand::Adopt { .. }))
         )
     {
         if cli.config.is_some() {
@@ -291,7 +581,24 @@ fn run(cli: &Cli) -> Result<Envelope> {
             (store.edit(proxy, edit)?, true, "applied")
         } else {
             match &cli.command {
-                Some(Command::Proxy(ProxyCommand::Add(args))) => {
+                Some(Command::Route(RouteCommand::Adopt {
+                    id,
+                    proxy,
+                    native_id,
+                    expected_fingerprint,
+                    source,
+                })) => (
+                    store.adopt(
+                        proxy,
+                        id,
+                        native_id,
+                        expected_fingerprint,
+                        source.as_deref(),
+                    )?,
+                    true,
+                    "adopted",
+                ),
+                Some(Command::Proxy(ProxyCommand::Add(args) | ProxyCommand::Update(args))) => {
                     let authority = if let Some(file) = &args.config_file {
                         match args.engine {
                             Engine::Caddy => {
@@ -301,16 +608,26 @@ fn run(cli: &Cli) -> Result<Envelope> {
                                         "--directory is for Traefik",
                                     ));
                                 }
-                                managed::Authority::CaddyJson {
-                                    file: file.clone(),
-                                    server: args
-                                        .listener
-                                        .clone()
-                                        .expect("required with config-file"),
-                                    binary: managed::executable(&args.caddy_bin)?,
+                                if args.caddyfile {
+                                    managed::Authority::CaddyFile {
+                                        file: file.clone(),
+                                        binary: managed::executable(&args.caddy_bin)?,
+                                        listen: args.listener.clone().expect("listener"),
+                                        controller: args.docker_controller,
+                                    }
+                                } else {
+                                    managed::Authority::CaddyJson {
+                                        file: file.clone(),
+                                        server: args
+                                            .listener
+                                            .clone()
+                                            .expect("required with config-file"),
+                                        binary: managed::executable(&args.caddy_bin)?,
+                                    }
                                 }
                             }
                             Engine::Traefik => managed::Authority::TraefikDirectory {
+                                managed_file: None,
                                 startup: file.clone(),
                                 entrypoint: args
                                     .listener
@@ -325,6 +642,19 @@ fn run(cli: &Cli) -> Result<Envelope> {
                         managed::Authority::ReadOnly
                     };
                     let connection = managed::Connection {
+                        tls: if args.ca_file.is_some()
+                            || args.cert_resolver.is_some()
+                            || args.certificate.is_some()
+                        {
+                            Some(managed::ProxyTls {
+                                ca_file: args.ca_file.clone(),
+                                cert_resolver: args.cert_resolver.clone(),
+                                certificate: args.certificate.clone(),
+                                private_key: args.private_key.clone(),
+                            })
+                        } else {
+                            None
+                        },
                         binding: Binding {
                             id: args.id.clone(),
                             engine: args.engine,
@@ -337,13 +667,31 @@ fn run(cli: &Cli) -> Result<Envelope> {
                         },
                         authority,
                     };
-                    (store.connect(connection)?, true, "connected")
+                    let value =
+                        if matches!(cli.command, Some(Command::Proxy(ProxyCommand::Update(_)))) {
+                            store.update_connection(connection)?
+                        } else {
+                            store.connect(connection)?
+                        };
+                    (value, true, "connected")
+                }
+                Some(Command::Proxy(ProxyCommand::Remove { id })) => {
+                    (store.remove_connection(id, false)?, true, "removed")
+                }
+                Some(Command::Proxy(ProxyCommand::Detach { id })) => {
+                    (store.remove_connection(id, true)?, true, "detached")
                 }
                 Some(Command::Operations(OperationCommand::List)) => {
                     (store.operations()?, false, "observed")
                 }
                 Some(Command::Operations(OperationCommand::Recover { id })) => {
                     (store.recover(id)?, true, "compensated")
+                }
+                Some(Command::Operations(OperationCommand::Inspect { id })) => {
+                    (store.inspect_operation(id)?, false, "observed")
+                }
+                Some(Command::Operations(OperationCommand::Rollback { id })) => {
+                    (store.rollback(id)?, true, "rolled_back")
                 }
                 _ => unreachable!(),
             }
@@ -356,7 +704,7 @@ fn run(cli: &Cli) -> Result<Envelope> {
             diagnostics: Vec::new(),
         });
     }
-    let manifest = if let Some(Command::Plan { file }) = &cli.command {
+    let manifest = if let Some(Command::Plan { file, .. }) = &cli.command {
         Some(config::load_manifest(file)?)
     } else {
         None
@@ -366,6 +714,24 @@ fn run(cli: &Cli) -> Result<Envelope> {
     } else {
         None
     };
+    if let Some(Command::Plan { out, .. }) = &cli.command {
+        if let Some(store) = &store {
+            let data = store.plan_manifest(manifest.as_ref().expect("manifest"), out.as_deref())?;
+            return Ok(Envelope {
+                schema_version: "1",
+                status: "planned",
+                changed: false,
+                data,
+                diagnostics: Vec::new(),
+            });
+        }
+        if out.is_some() {
+            return Err(Diagnostic::new(
+                "plan.profile",
+                "--out requires saved managed connections; profile-only previews remain read-only",
+            ));
+        }
+    }
     let mut config = if let Some(path) = &cli.config {
         config::load_config(path)?
     } else {
@@ -485,16 +851,20 @@ fn run(cli: &Cli) -> Result<Envelope> {
                             s.book.routes.iter().any(|owned| {
                                 owned.spec.id == *id
                                     && owned.spec.proxy == r.binding
-                                    && r.native_id
-                                        == match config
-                                            .proxies
-                                            .iter()
-                                            .find(|p| p.id == r.binding)
-                                            .map(|p| p.engine)
-                                        {
-                                            Some(Engine::Caddy) => format!("{}:0", owned.native_id),
-                                            _ => format!("{}@file", owned.native_id),
-                                        }
+                                    && ((r.ownership == "owned"
+                                        && r.hosts == [owned.spec.hostname.clone()])
+                                        || r.native_id
+                                            == match config
+                                                .proxies
+                                                .iter()
+                                                .find(|p| p.id == r.binding)
+                                                .map(|p| p.engine)
+                                            {
+                                                Some(Engine::Caddy) => {
+                                                    format!("{}:0", owned.native_id)
+                                                }
+                                                _ => format!("{}@file", owned.native_id),
+                                            })
                             })
                         })
                 })
@@ -544,6 +914,9 @@ fn output(envelope: &Envelope, json_mode: bool) -> io::Result<()> {
 }
 
 fn main() -> ExitCode {
+    clap_complete::CompleteEnv::with_factory(completion::command)
+        .var("STEWARD_COMPLETE")
+        .complete();
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(error) => {
@@ -572,13 +945,52 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    match remote::dispatch(&cli) {
+        Ok(Some(code)) => return code,
+        Ok(None) => {}
+        Err(error) => {
+            let envelope = Envelope {
+                schema_version: "1",
+                status: "rejected",
+                changed: error.changed,
+                data: Value::Null,
+                diagnostics: vec![error],
+            };
+            let _ = output(&envelope, cli.json);
+            return ExitCode::from(2);
+        }
+    }
+    if matches!(cli.command, Some(Command::Tui)) {
+        return match tui::start(cli.state_dir.clone()) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{}", plan::safe(&e.to_string()));
+                ExitCode::from(2)
+            }
+        };
+    }
     if cli.command.is_none() {
         let mut command = Cli::command();
         let _ = command.print_help();
         println!();
         return ExitCode::SUCCESS;
     }
-    if let Some(Command::Completions { shell }) = cli.command {
+    if let Some(Command::Completions { shell, dynamic }) = cli.command {
+        if dynamic {
+            let mut child = match std::env::current_exe().and_then(|exe| {
+                std::process::Command::new(exe)
+                    .env("STEWARD_COMPLETE", shell.to_string().to_ascii_lowercase())
+                    .spawn()
+            }) {
+                Ok(child) => child,
+                Err(_) => return ExitCode::from(1),
+            };
+            return if child.wait().is_ok_and(|s| s.success()) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            };
+        }
         // The static command tree emits a small script; buffering keeps generator
         // internals from panicking when a downstream reader closes stdout early.
         let mut script = Vec::new();

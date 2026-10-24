@@ -1,4 +1,9 @@
-//! Explicit local file authority, receipts, and a single recoverable operation.
+//! Explicit local file authority, receipts, durable history and recoverable operations.
+mod adoption;
+mod caddyfile;
+mod history;
+mod manifest;
+mod tls;
 use crate::{
     config,
     error::{Diagnostic, Result},
@@ -15,18 +20,37 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use tls::{tls_candidate, traefik_tls_document, validate_tls};
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Connection {
     pub binding: Binding,
     pub authority: Authority,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls: Option<ProxyTls>,
+}
+
+#[derive(Clone, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ProxyTls {
+    pub ca_file: Option<PathBuf>,
+    pub cert_resolver: Option<String>,
+    pub certificate: Option<PathBuf>,
+    pub private_key: Option<PathBuf>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Authority {
     ReadOnly,
+    CaddyFile {
+        file: PathBuf,
+        binary: PathBuf,
+        listen: String,
+        #[serde(default)]
+        controller: bool,
+    },
     CaddyJson {
         file: PathBuf,
         server: String,
@@ -36,6 +60,8 @@ pub enum Authority {
         startup: PathBuf,
         directory: PathBuf,
         entrypoint: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        managed_file: Option<PathBuf>,
     },
 }
 
@@ -55,11 +81,9 @@ pub struct Book {
     pub routes: Vec<Receipt>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Journal {
-    // ponytail: retain one recoverable/latest operation (bounded at 8 MiB), with
-    // independent persistent receipts. Add an append-only history when audit retention is needed.
     schema_version: String,
     id: String,
     phase: String,
@@ -69,6 +93,12 @@ struct Journal {
     after: Option<String>,
     old: Book,
     desired: Book,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reverses: Option<String>,
+    #[serde(default)]
+    native_before: Option<Value>,
+    #[serde(default)]
+    native_after: Option<Value>,
 }
 
 pub struct Store {
@@ -136,7 +166,7 @@ fn input_lock(connection: &Connection) -> Result<File> {
                 "This connection is inventory-only; register explicit file authority for writes",
             ));
         }
-        Authority::CaddyJson { file, .. } => {
+        Authority::CaddyJson { file, .. } | Authority::CaddyFile { file, .. } => {
             let parent = file
                 .parent()
                 .ok_or_else(|| error("authority.path", "Missing startup parent"))?;
@@ -177,7 +207,7 @@ fn absolute(path: &Path) -> Result<PathBuf> {
     Ok(path.to_path_buf())
 }
 
-fn regular(path: &Path) -> Result<Option<fs::Metadata>> {
+pub(crate) fn regular(path: &Path) -> Result<Option<fs::Metadata>> {
     match fs::symlink_metadata(path) {
         Ok(meta) => {
             #[cfg(unix)]
@@ -213,7 +243,7 @@ fn text(path: &Path) -> Result<Option<String>> {
         .map_err(|_| error("input.encoding", "Managed configuration must be UTF-8"))
 }
 
-fn publish(path: &Path, value: Option<&str>) -> Result<()> {
+pub(crate) fn publish(path: &Path, value: Option<&str>) -> Result<()> {
     let existing = regular(path)?;
     let parent = path
         .parent()
@@ -342,11 +372,33 @@ impl Store {
     }
 
     fn record(&self, journal: &Journal) -> Result<()> {
+        if let Some(previous) = self.journal()?
+            && previous.id != journal.id
+        {
+            let archived = self
+                .root
+                .join("operations")
+                .join(format!("{}.json", previous.id));
+            if regular(&archived)?.is_none() {
+                self.prepare_history(&previous)?;
+                publish(&archived, Some(&encoded(&previous)?))?;
+            }
+        }
         let value = encoded(journal)?;
         if value.len() > 8 * config::MAX_CONFIG {
             return Err(error("state.limit", "Operation journal exceeds 8 MiB"));
         }
-        publish(&self.root.join("operation.json"), Some(&value))
+        self.prepare_history(journal)?;
+        // The active pointer is durable before the historical copy. Recovery can
+        // repair a stale history entry from this pointer after interrupted writes.
+        publish(&self.root.join("operation.json"), Some(&value))?;
+        publish(
+            &self
+                .root
+                .join("operations")
+                .join(format!("{}.json", journal.id)),
+            Some(&value),
+        )
     }
 
     fn ready(&self) -> Result<()> {
@@ -360,13 +412,6 @@ impl Store {
             .at(journal.id));
         }
         Ok(())
-    }
-
-    pub fn operations(&self) -> Result<Value> {
-        Ok(self.journal()?.map_or_else(
-            || json!([]),
-            |j| json!([{ "id": j.id, "phase": j.phase, "proxy": j.connection.binding.id }]),
-        ))
     }
 
     pub fn connect(&mut self, connection: Connection) -> Result<Value> {
@@ -385,13 +430,40 @@ impl Store {
                 "Proxy ID already exists, or the 16-binding limit was reached",
             ));
         }
+        self.validate_connection(&connection)?;
+        let mut book = self.book.clone();
+        book.connections.push(connection);
+        self.save(&book)?;
+        self.book = book;
+        Ok(json!({"proxy": self.book.connections.last(), "scope": "user"}))
+    }
+
+    fn validate_connection(&self, connection: &Connection) -> Result<()> {
+        config::resource_id(&connection.binding.id)?;
+        config::validate_endpoint(&connection.binding.endpoint)?;
         if let Some(auth) = &connection.binding.auth_file {
             absolute(Path::new(auth))?;
         }
         if !matches!(connection.authority, Authority::ReadOnly) {
-            authority(&connection)?;
+            authority(connection)?;
         }
         let observations = transport::fetch(&connection.binding)?;
+        if let Authority::CaddyFile {
+            file,
+            binary,
+            controller,
+            ..
+        } = &connection.authority
+        {
+            let source = text(file)?.ok_or_else(|| error("authority.file", "Caddyfile missing"))?;
+            let adapted = caddyfile::adapt(binary, file, &source)?;
+            if !controller && adapted != observations.values["/config/"] {
+                return Err(error(
+                    "authority.mismatch",
+                    "Caddyfile plus imports does not match loaded native configuration",
+                ));
+            }
+        }
         if let Authority::CaddyJson { file, .. } = &connection.authority {
             let source = config::load::<Value>(file, config::MAX_CONFIG)?;
             if source != observations.values["/config/"] {
@@ -408,11 +480,60 @@ impl Store {
             }
         }
         inventory::decode(&connection.binding, Scope::User, observations)?;
-        let mut book = self.book.clone();
-        book.connections.push(connection);
-        self.save(&book)?;
-        self.book = book;
-        Ok(json!({"proxy": self.book.connections.last(), "scope": "user"}))
+        Ok(())
+    }
+
+    pub fn update_connection(&mut self, connection: Connection) -> Result<Value> {
+        self.ready()?;
+        let index = self
+            .book
+            .connections
+            .iter()
+            .position(|c| c.binding.id == connection.binding.id)
+            .ok_or_else(|| error("binding.missing", "Proxy is not registered"))?;
+        if self
+            .book
+            .routes
+            .iter()
+            .any(|r| r.spec.proxy == connection.binding.id)
+            && fingerprint(&self.book.connections[index]) != fingerprint(&connection)
+        {
+            return Err(error(
+                "binding.in_use",
+                "Remove or explicitly detach owned routes before changing their authority",
+            ));
+        }
+        self.validate_connection(&connection)?;
+        let mut next = self.book.clone();
+        next.connections[index] = connection.clone();
+        self.save(&next)?;
+        self.book = next;
+        Ok(json!({"proxy":connection}))
+    }
+
+    pub fn remove_connection(&mut self, id: &str, detach: bool) -> Result<Value> {
+        self.ready()?;
+        if !self.book.connections.iter().any(|c| c.binding.id == id) {
+            return Err(error("binding.missing", "Proxy is not registered"));
+        }
+        let owned = self
+            .book
+            .routes
+            .iter()
+            .filter(|r| r.spec.proxy == id)
+            .count();
+        if owned > 0 && !detach {
+            return Err(error(
+                "binding.in_use",
+                "Remove owned routes first, or use proxies detach to explicitly relinquish ownership without changing native inputs",
+            ));
+        }
+        let mut next = self.book.clone();
+        next.connections.retain(|c| c.binding.id != id);
+        next.routes.retain(|r| r.spec.proxy != id);
+        self.save(&next)?;
+        self.book = next;
+        Ok(json!({"proxy":id,"detached_routes":owned,"native_inputs_changed":false}))
     }
 }
 
@@ -435,6 +556,23 @@ fn authority(connection: &Connection) -> Result<String> {
         ));
     }
     match &connection.authority {
+        Authority::CaddyFile {
+            file,
+            binary,
+            listen,
+            ..
+        } => {
+            absolute(file)?;
+            absolute(binary)?;
+            regular(file)?.ok_or_else(|| error("authority.file", "Caddyfile must exist"))?;
+            if connection.binding.engine != Engine::Caddy {
+                return Err(error(
+                    "authority.engine",
+                    "Caddyfile requires a Caddy connection",
+                ));
+            }
+            listener(listen)
+        }
         Authority::ReadOnly => Err(error(
             "capability.read_only",
             "This connection is inventory-only; register explicit file authority for writes",
@@ -468,16 +606,6 @@ fn authority(connection: &Connection) -> Result<String> {
                         "Selected Caddy server is absent from the startup file",
                     )
                 })?;
-            if server.pointer("/automatic_https/disable") != Some(&Value::Bool(true))
-                || server
-                    .get("tls_connection_policies")
-                    .is_some_and(|v| !v.is_null() && v != &json!([]))
-            {
-                return Err(error(
-                    "capability.tls",
-                    "This writable slice requires an explicit HTTP-only Caddy server (automatic_https.disable=true)",
-                ));
-            }
             listener(
                 server
                     .get("listen")
@@ -496,6 +624,7 @@ fn authority(connection: &Connection) -> Result<String> {
             startup,
             directory,
             entrypoint,
+            managed_file,
         } => {
             if connection.binding.engine != Engine::Traefik {
                 return Err(error(
@@ -505,6 +634,16 @@ fn authority(connection: &Connection) -> Result<String> {
             }
             absolute(startup)?;
             absolute(directory)?;
+            if let Some(file) = managed_file {
+                absolute(file)?;
+                if file.parent() != Some(directory.as_path()) {
+                    return Err(error(
+                        "authority.file",
+                        "Adopted file must be directly inside the watched directory",
+                    ));
+                }
+                regular(file)?;
+            }
             config::resource_id(entrypoint)?;
             regular(startup)?.ok_or_else(|| {
                 error(
@@ -539,12 +678,6 @@ fn authority(connection: &Connection) -> Result<String> {
                         "Selected entrypoint is absent from startup configuration",
                     )
                 })?;
-            if entry.pointer("/http/tls").is_some() {
-                return Err(error(
-                    "capability.tls",
-                    "The first writable slice supports explicit HTTP entrypoints",
-                ));
-            }
             listener(
                 entry
                     .get("address")
@@ -580,8 +713,31 @@ fn listener(address: &str) -> Result<String> {
     Ok(format!("http://127.0.0.1:{port}"))
 }
 
+pub(crate) fn public_url(connection: &Connection, spec: &RouteSpec) -> Result<String> {
+    let native = authority(connection)?;
+    let port = config::http_url(&native)?
+        .port()
+        .ok_or_else(|| error("authority.port", "Missing listener port"))?;
+    let scheme = if matches!(spec.tls.mode, TlsMode::Http) {
+        "http"
+    } else {
+        "https"
+    };
+    let suffix = if (scheme == "http" && port == 80) || (scheme == "https" && port == 443) {
+        String::new()
+    } else {
+        format!(":{port}")
+    };
+    Ok(format!("{scheme}://{}{suffix}", spec.hostname))
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(tag = "action", content = "data", rename_all = "snake_case")]
 pub enum Edit {
     Add(RouteSpec),
+    Upsert {
+        routes: Vec<RouteSpec>,
+    },
     Set {
         id: String,
         hostname: Option<String>,
@@ -643,6 +799,7 @@ fn candidate(
     let previous = own(old, &connection.binding.id);
     let wanted = own(desired, &connection.binding.id);
     match &connection.authority {
+        Authority::CaddyFile { .. } => caddyfile::candidate(connection, old, desired, before),
         Authority::ReadOnly => Err(error(
             "capability.read_only",
             "Inventory-only connections cannot publish route inputs",
@@ -699,6 +856,7 @@ fn candidate(
             for receipt in wanted.iter().filter(|r| r.spec.enabled) {
                 routes.push(caddy_route(receipt)?);
             }
+            tls_candidate(connection, &mut root, &previous, &wanted)?;
             Ok(Some(encoded(&root)?))
         }
         Authority::TraefikDirectory { entrypoint, .. } => {
@@ -708,7 +866,7 @@ fn candidate(
                     error("ownership.drift", "Owned Traefik aggregate disappeared")
                 })?;
                 if config::strict_json(existing.as_bytes())?
-                    != traefik_document(&previous, entrypoint)
+                    != traefik_tls_document(connection, &previous, entrypoint)?
                 {
                     return Err(error(
                         "ownership.drift",
@@ -722,7 +880,9 @@ fn candidate(
                 ));
             }
             if wanted.iter().any(|r| r.spec.enabled) {
-                Ok(Some(encoded(&traefik_document(&wanted, entrypoint))?))
+                Ok(Some(encoded(&traefik_tls_document(
+                    connection, &wanted, entrypoint,
+                )?)?))
             } else {
                 Ok(None)
             }
@@ -733,6 +893,7 @@ fn candidate(
 fn check_conflicts(connection: &Connection, book: &Book, wanted: &[&Receipt]) -> Result<()> {
     let observed = inventory::inspect(&connection.binding, Scope::User)?;
     let listener = match &connection.authority {
+        Authority::CaddyFile { listen, .. } => listen.clone(),
         Authority::ReadOnly => {
             return Err(error(
                 "capability.read_only",
@@ -764,11 +925,13 @@ fn check_conflicts(connection: &Connection, book: &Book, wanted: &[&Receipt]) ->
         .filter(|r| r.entrypoints.is_empty() || r.entrypoints.contains(&listener))
     {
         let ours = own(book, &connection.binding.id).iter().any(|r| {
-            route.native_id
-                == match connection.binding.engine {
-                    Engine::Caddy => format!("{}:0", r.native_id),
-                    Engine::Traefik => format!("{}@file", r.native_id),
-                }
+            (matches!(connection.authority, Authority::CaddyFile { .. })
+                && caddyfile::route_matches(connection, route, r))
+                || route.native_id
+                    == match connection.binding.engine {
+                        Engine::Caddy => format!("{}:0", r.native_id),
+                        Engine::Traefik => format!("{}@file", r.native_id),
+                    }
         });
         if ours {
             continue;
@@ -874,6 +1037,28 @@ fn native_matches(
     expected_source: Option<&str>,
 ) -> Result<bool> {
     match &connection.authority {
+        Authority::CaddyFile { controller, .. } => {
+            if !controller {
+                let expected = caddyfile::native(
+                    connection,
+                    expected_source.ok_or_else(|| error("authority.file", "Caddyfile missing"))?,
+                )?;
+                return Ok(caddy_current(connection)?.0 == expected);
+            }
+            let observed = inventory::inspect(&connection.binding, Scope::User)?;
+            Ok(own(book, &connection.binding.id).iter().all(|r| {
+                let count = observed
+                    .routes
+                    .iter()
+                    .filter(|o| caddyfile::route_matches(connection, o, r))
+                    .count();
+                if r.spec.enabled {
+                    count == 1
+                } else {
+                    count == 0
+                }
+            }))
+        }
         Authority::ReadOnly => Err(error(
             "capability.read_only",
             "Inventory-only connections cannot verify a write",
@@ -901,7 +1086,14 @@ fn native_matches(
             let prefix = format!("steward-{}-{}-", book.owner, connection.binding.id);
             let actual: Vec<_> = routers
                 .iter()
-                .filter(|r| r["name"].as_str().is_some_and(|n| n.starts_with(&prefix)))
+                .filter(|r| {
+                    r["name"].as_str().is_some_and(|n| {
+                        n.starts_with(&prefix)
+                            || expected
+                                .iter()
+                                .any(|r| n == format!("{}@file", r.native_id))
+                    })
+                })
                 .collect();
             if actual.len() != expected.iter().filter(|r| r.spec.enabled).count() {
                 return Ok(false);
@@ -917,9 +1109,10 @@ fn native_matches(
                     || router
                         .get("middlewares")
                         .is_some_and(|v| !v.is_null() && v != &json!([]))
-                    || router
+                    || (router
                         .get("tls")
                         .is_some_and(|v| !v.is_null() && v != &Value::Bool(false))
+                        == matches!(receipt.spec.tls.mode, TlsMode::Http))
                     || !matches!(router["service"].as_str(), Some(s) if s == receipt.native_id || s == name)
                 {
                     return Ok(false);
@@ -943,7 +1136,20 @@ fn native_matches(
 }
 
 fn wait_native(connection: &Connection, book: &Book, source: Option<&str>) -> Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now()
+        + Duration::from_secs(
+            if matches!(
+                connection.authority,
+                Authority::CaddyFile {
+                    controller: true,
+                    ..
+                }
+            ) {
+                70
+            } else {
+                10
+            },
+        );
     loop {
         if native_matches(connection, book, source)? {
             return Ok(());
@@ -960,44 +1166,60 @@ fn wait_native(connection: &Connection, book: &Book, source: Option<&str>) -> Re
 
 fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
     let base = authority(connection)?;
-    let client = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(2))
-        .timeout(Duration::from_secs(4))
-        .build()
-        .map_err(|_| {
+    let port = config::http_url(&base)?
+        .port()
+        .ok_or_else(|| error("verification.port", "Missing listener port"))?;
+    let deadline = Instant::now() + Duration::from_secs(60);
+    for receipt in receipts.iter().filter(|r| r.spec.enabled) {
+        let tls = !matches!(receipt.spec.tls.mode, TlsMode::Http);
+        let mut builder = reqwest::blocking::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(4))
+            .resolve(
+                &receipt.spec.hostname,
+                std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            );
+        if tls && let Some(ca) = connection.tls.as_ref().and_then(|t| t.ca_file.as_ref()) {
+            let cert = reqwest::Certificate::from_pem(&config::read_bounded(ca, 128 * 1024)?)
+                .map_err(|_| error("tls.trust", "Invalid CA PEM"))?;
+            builder = builder.add_root_certificate(cert);
+        }
+        let client = builder.build().map_err(|_| {
             error(
                 "verification.client",
-                "Could not construct routing verification client",
+                "Could not construct verified routing client",
             )
         })?;
-    let deadline = Instant::now() + Duration::from_secs(15);
-    for receipt in receipts.iter().filter(|r| r.spec.enabled) {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .ok_or_else(|| {
-                error(
-                    "verification.timeout",
-                    "Routing verification exceeded its 15-second aggregate deadline",
-                )
-            })?;
-        let response = client
-            .get(format!("{base}/"))
-            .header("Host", &receipt.spec.hostname)
-            .timeout(remaining.min(Duration::from_secs(4)))
-            .send()
-            .map_err(|_| {
-                error(
+        loop {
+            let remaining = deadline
+                .checked_duration_since(Instant::now())
+                .ok_or_else(|| {
+                    error(
+                        "verification.timeout",
+                        "Routing verification exceeded its 15-second aggregate deadline",
+                    )
+                })?;
+            let response = client
+                .get(format!(
+                    "{}://{}:{port}/",
+                    if tls { "https" } else { "http" },
+                    receipt.spec.hostname
+                ))
+                .header("Host", &receipt.spec.hostname)
+                .timeout(remaining.min(Duration::from_secs(4)))
+                .send();
+            if response.is_ok_and(|r| (200..400).contains(&r.status().as_u16())) {
+                break;
+            }
+            if !tls || Instant::now() >= deadline {
+                return Err(error(
                     "verification.routing",
-                    "Request through the selected proxy failed",
-                )
-            })?;
-        if !(200..400).contains(&response.status().as_u16()) {
-            return Err(error(
-                "verification.routing",
-                "Route verification requires an upstream root path returning HTTP 2xx/3xx",
-            ));
+                    "Verified route request failed; check backend, certificate trust, hostname and issuance",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(200));
         }
     }
     Ok(())
@@ -1005,6 +1227,11 @@ fn probe(connection: &Connection, receipts: &[&Receipt]) -> Result<()> {
 
 impl Store {
     pub fn edit(&mut self, proxy: &str, edit: Edit) -> Result<Value> {
+        let (journal, id) = self.prepare_edit(proxy, edit)?;
+        self.commit_edit(journal, &id)
+    }
+
+    fn prepare_edit(&self, proxy: &str, edit: Edit) -> Result<(Journal, String)> {
         self.ready()?;
         config::resource_id(proxy)?;
         let connection = self
@@ -1023,15 +1250,40 @@ impl Store {
         let _input_lock = input_lock(&connection)?;
         let mut desired = self.book.clone();
         let id = match edit {
+            Edit::Upsert { routes } => {
+                if routes.len() > 128 {
+                    return Err(error("input.limit", "At most 128 managed routes"));
+                }
+                let mut ids = std::collections::BTreeSet::new();
+                for mut spec in routes {
+                    if spec.proxy != proxy || !ids.insert(spec.id.clone()) {
+                        return Err(error(
+                            "plan.routes",
+                            "Plan routes must have unique IDs on the selected proxy",
+                        ));
+                    }
+                    config::validate_route(&mut spec)?;
+                    validate_tls(&connection, &spec)?;
+                    if let Some(existing) = desired
+                        .routes
+                        .iter_mut()
+                        .find(|r| r.spec.proxy == proxy && r.spec.id == spec.id)
+                    {
+                        existing.spec = spec;
+                    } else {
+                        if desired.routes.len() >= 128 {
+                            return Err(error("input.limit", "At most 128 managed routes"));
+                        }
+                        let native_id = format!("steward-{}-{proxy}-{}", desired.owner, spec.id);
+                        desired.routes.push(Receipt { spec, native_id });
+                    }
+                }
+                "manifest".into()
+            }
             Edit::Add(mut spec) => {
                 spec.proxy = proxy.into();
                 config::validate_route(&mut spec)?;
-                if !matches!(spec.tls.mode, TlsMode::Http) {
-                    return Err(error(
-                        "capability.tls",
-                        "Writable routes currently require --tls http",
-                    ));
-                }
+                validate_tls(&connection, &spec)?;
                 if desired.routes.len() >= 128
                     || desired
                         .routes
@@ -1102,13 +1354,28 @@ impl Store {
                     "Inventory-only connections cannot publish route inputs",
                 ));
             }
-            Authority::CaddyJson { file, .. } => file.clone(),
-            Authority::TraefikDirectory { directory, .. } => {
+            Authority::CaddyJson { file, .. } | Authority::CaddyFile { file, .. } => file.clone(),
+            Authority::TraefikDirectory {
+                directory,
+                managed_file,
+                ..
+            } => managed_file.clone().unwrap_or_else(|| {
                 directory.join(format!("steward-{}-{proxy}.yaml", self.book.owner))
-            }
+            }),
         };
         let before = text(&source)?;
         let after = candidate(&connection, &self.book, &desired, before.as_deref())?;
+        let (native_before, native_after) =
+            if let Authority::CaddyFile { binary, .. } = &connection.authority {
+                let before_native =
+                    caddyfile::adapt(binary, &source, before.as_deref().expect("source"))?;
+                let after_native =
+                    caddyfile::adapt(binary, &source, after.as_deref().expect("candidate"))?;
+                validate_caddy(binary, &source, &encoded(&after_native)?)?;
+                (Some(before_native), Some(after_native))
+            } else {
+                (None, None)
+            };
         if matches!(connection.authority, Authority::TraefikDirectory { .. })
             && !native_matches(&connection, &self.book, before.as_deref())?
         {
@@ -1129,7 +1396,7 @@ impl Store {
                 .as_nanos(),
             std::process::id(),
         ));
-        let mut journal = Journal {
+        let journal = Journal {
             schema_version: "1".into(),
             id: operation[..16].into(),
             phase: "prepared".into(),
@@ -1139,7 +1406,16 @@ impl Store {
             after,
             old: self.book.clone(),
             desired,
+            reverses: None,
+            native_before,
+            native_after,
         };
+        Ok((journal, id))
+    }
+
+    fn commit_edit(&mut self, mut journal: Journal, id: &str) -> Result<Value> {
+        let proxy = journal.connection.binding.id.clone();
+        let _input_lock = input_lock(&journal.connection)?;
         self.record(&journal)?;
         let result = self.execute(&mut journal);
         if let Err(failure) = result {
@@ -1160,9 +1436,9 @@ impl Store {
             return Err(error("operation.recovery_required", "A write occurred but activation/compensation could not be verified; inspect operations list and recover").at(journal.id).with_changes());
         }
         self.book = journal.desired;
-        let active = own(&self.book, proxy).iter().any(|r| r.spec.enabled);
+        let active = own(&self.book, &proxy).iter().any(|r| r.spec.enabled);
         Ok(
-            json!({"operation":journal.id,"phase":"verified","proxy":proxy,"route":id,"verification":{"native":true,"routing":if active { json!(true) } else { Value::Null }},"owned_routes":own(&self.book,proxy)}),
+            json!({"operation":journal.id,"phase":"verified","proxy":proxy,"route":id,"verification":{"native":true,"routing":if active { json!(true) } else { Value::Null }},"owned_routes":own(&self.book,&proxy)}),
         )
     }
 
@@ -1170,11 +1446,16 @@ impl Store {
         if text(&journal.source)? != journal.before {
             return Err(error("operation.stale", "Source changed after preparation"));
         }
-        let caddy_etag = if matches!(journal.connection.authority, Authority::CaddyJson { .. }) {
+        let caddy_etag = if matches!(
+            journal.connection.authority,
+            Authority::CaddyJson { .. }
+                | Authority::CaddyFile {
+                    controller: false,
+                    ..
+                }
+        ) {
             let (current, etag) = caddy_current(&journal.connection)?;
-            if current
-                != config::strict_json(journal.before.as_deref().expect("Caddy source").as_bytes())?
-            {
+            if current != journal_native(journal, false)? {
                 return Err(error(
                     "authority.mismatch",
                     "Startup source does not match loaded Caddy configuration",
@@ -1198,7 +1479,7 @@ impl Store {
         if let Some(etag) = caddy_etag {
             transport::replace_caddy(
                 &journal.connection.binding,
-                &config::strict_json(journal.after.as_deref().expect("Caddy source").as_bytes())?,
+                &journal_native(journal, true)?,
                 &etag,
             )?;
         }
@@ -1206,7 +1487,11 @@ impl Store {
         self.record(journal)?;
         wait_native(
             &journal.connection,
-            &journal.desired,
+            &if journal.before == journal.after {
+                journal.desired.clone()
+            } else {
+                verification_book(&journal.desired, &journal.old)
+            },
             journal.after.as_deref(),
         )?;
         probe(
@@ -1223,29 +1508,23 @@ impl Store {
         if current != journal.after && current != journal.before {
             return Err(error("operation.drift", "Input drift blocks compensation"));
         }
-        if let Authority::CaddyJson { binary, .. } = &journal.connection.authority {
-            let before = journal
-                .before
-                .as_deref()
-                .ok_or_else(|| error("state.journal", "Missing Caddy backup"))?;
-            let original = config::strict_json(before.as_bytes())?;
+        if let Authority::CaddyJson { binary, .. }
+        | Authority::CaddyFile {
+            binary,
+            controller: false,
+            ..
+        } = &journal.connection.authority
+        {
+            let original = journal_native(journal, false)?;
             let (native, etag) = caddy_current(&journal.connection)?;
             if native != original {
-                if native
-                    != config::strict_json(
-                        journal
-                            .after
-                            .as_deref()
-                            .expect("Caddy candidate")
-                            .as_bytes(),
-                    )?
-                {
+                if native != journal_native(journal, true)? {
                     return Err(error(
                         "operation.drift",
                         "Runtime drift blocks conditional compensation",
                     ));
                 }
-                validate_caddy(binary, &journal.source, before)?;
+                validate_caddy(binary, &journal.source, &encoded(&original)?)?;
                 transport::replace_caddy(&journal.connection.binding, &original, &etag)?;
             }
         }
@@ -1254,7 +1533,15 @@ impl Store {
             return Err(error("operation.drift", "Source changed during recovery"));
         }
         publish(&journal.source, journal.before.as_deref())?;
-        wait_native(&journal.connection, &journal.old, journal.before.as_deref())?;
+        wait_native(
+            &journal.connection,
+            &if journal.before == journal.after {
+                journal.old.clone()
+            } else {
+                verification_book(&journal.old, &journal.desired)
+            },
+            journal.before.as_deref(),
+        )?;
         self.save(&journal.old)?;
         journal.phase = "compensated".into();
         self.record(journal)
@@ -1284,13 +1571,78 @@ impl Store {
     }
 }
 
+fn journal_native(journal: &Journal, after: bool) -> Result<Value> {
+    let source = if after {
+        &journal.after
+    } else {
+        &journal.before
+    };
+    let source = source
+        .as_deref()
+        .ok_or_else(|| error("state.journal", "Missing native source"))?;
+    if matches!(journal.connection.authority, Authority::CaddyFile { .. }) {
+        let stored = if after {
+            &journal.native_after
+        } else {
+            &journal.native_before
+        };
+        let stored = stored
+            .as_ref()
+            .ok_or_else(|| error("state.journal", "Missing adapted native snapshot"))?;
+        if caddyfile::native(&journal.connection, source)? != *stored {
+            return Err(error(
+                "operation.drift",
+                "Imported Caddyfile inputs changed after preparation",
+            ));
+        }
+        Ok(stored.clone())
+    } else {
+        config::strict_json(source.as_bytes())
+    }
+}
+
+fn verification_book(expected: &Book, previous: &Book) -> Book {
+    let mut book = expected.clone();
+    for old in &previous.routes {
+        if !book
+            .routes
+            .iter()
+            .any(|r| r.spec.proxy == old.spec.proxy && r.native_id == old.native_id)
+        {
+            let mut absent = old.clone();
+            absent.spec.enabled = false;
+            book.routes.push(absent);
+        }
+    }
+    book
+}
+
 pub fn qualify_ownership(book: &Book, observed: &mut crate::model::Inventory) {
+    let binding = book
+        .connections
+        .iter()
+        .find(|c| c.binding.id == observed.binding);
+    let source_intact = binding.is_none_or(|c| {
+        if let Authority::CaddyFile { file, .. } = &c.authority {
+            text(file).is_ok_and(|body| candidate(c, book, book, body.as_deref()).is_ok())
+        } else {
+            true
+        }
+    });
     observed.write_authorized = observed.runtime_confirmed
         && book.connections.iter().any(|c| {
             c.binding.id == observed.binding && !matches!(c.authority, Authority::ReadOnly)
         });
     for route in &mut observed.routes {
         for receipt in own(book, &observed.binding) {
+            if binding.is_some_and(|c| caddyfile::route_matches(c, route, receipt)) {
+                route.ownership = if receipt.spec.enabled && source_intact {
+                    "owned"
+                } else {
+                    "owned_drifted"
+                };
+                continue;
+            }
             let native_id = match observed.engine {
                 Engine::Caddy => format!("{}:0", receipt.native_id),
                 Engine::Traefik => format!("{}@file", receipt.native_id),

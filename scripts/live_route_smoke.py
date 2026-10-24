@@ -116,6 +116,10 @@ def run_engine(engine, executable, binary):
             assert result.returncode == 0 and json.loads(result.stdout)['changed'] is False
             result = subprocess.run(readonly + ['routes', 'add', 'not-authorized', '--proxy', 'inventory', '--host', 'none.localhost', '--upstream', backends[0], '--tls', 'http', '--json'], env=env, capture_output=True, timeout=10)
             assert result.returncode == 2 and json.loads(result.stdout)['diagnostics'][0]['code'] == 'capability.read_only'
+            result = subprocess.run(readonly + ['proxies', 'update', 'inventory', '--engine', engine, '--endpoint', api, '--json'], env=env, capture_output=True, timeout=40)
+            assert result.returncode == 0, result.stdout.decode()
+            result = subprocess.run(readonly + ['proxies', 'remove', 'inventory', '--json'], env=env, capture_output=True, timeout=10)
+            assert result.returncode == 0
             for shell in ('bash', 'zsh', 'fish', 'elvish', 'powershell'):
                 completion = subprocess.run(prefix + ['--config', '/never/read', 'completions', shell], env=env, capture_output=True, timeout=10)
                 assert completion.returncode == 0 and b'upstream' in completion.stdout, (shell, completion.stderr.decode())
@@ -127,8 +131,31 @@ def run_engine(engine, executable, binary):
             rows = cli('routes', 'list')['data']
             assert any(r['ownership'] == 'owned' for r in rows)
             assert cli('routes', 'inspect', 'site', '--proxy', 'local')['data']['ownership'] == 'owned'
-            cli('routes', 'update', 'site', '--proxy', 'local', '--upstream', backends[1])
+            completion = subprocess.run([str(binary), '--', 'steward', '--state-dir', str(state), 'routes', 'inspect', 'si'], env={**env, 'STEWARD_COMPLETE':'bash', '_CLAP_COMPLETE_INDEX':'5'}, capture_output=True, timeout=10)
+            assert completion.returncode == 0 and b'site' in completion.stdout, completion
+            blocked = cli('proxies', 'remove', 'local', success=False)
+            assert blocked['diagnostics'][0]['code'] == 'binding.in_use'
+            update = cli('routes', 'update', 'site', '--proxy', 'local', '--upstream', backends[1])
             assert request(web + '/', 'site.localhost')[0] == b'two /'
+            operation_id = update['data']['operation']
+            assert cli('operations','inspect',operation_id)['data']['phase'] == 'verified'
+            rollback = cli('operations','rollback',operation_id)
+            assert rollback['data']['reverses'] == operation_id
+            assert request(web + '/', 'site.localhost')[0] == b'one /'
+            cli('routes', 'update', 'site', '--proxy', 'local', '--upstream', backends[1])
+            assert len(cli('operations','list')['data']) >= 4
+            manifest = root / 'intent.json'
+            manifest.write_text(json.dumps({'schema_version':'1','scope':'user','routes':[{'id':'planned','proxy':'local','hostname':'planned.localhost','upstream':{'url':backends[0]},'enabled':True,'tls':{'mode':'http'}}]}))
+            planned = root / 'reviewed.json'
+            assert cli('plan','--file',str(manifest),'--out',str(planned))['data']['applicable'] is True
+            plan_source=source if engine=='caddy' else next((root/'dynamic').glob('steward-*.yaml'))
+            plan_before=plan_source.read_text();plan_source.write_text(plan_before+'\n')
+            assert cli('apply','--plan',str(planned),'--yes',success=False)['diagnostics'][0]['code']=='plan.stale'
+            plan_source.write_text(plan_before)
+            cli('apply','--plan',str(planned),'--yes')
+            assert request(web + '/', 'planned.localhost')[0] == b'one /'
+            assert cli('apply','--plan',str(planned),'--yes',success=False)['diagnostics'][0]['code'] == 'plan.stale'
+            cli('routes','remove','planned','--proxy','local')
             overlap = cli('routes', 'add', 'conflict', '--proxy', 'local', '--host', 'external.localhost', '--upstream', backends[0], '--tls', 'http', success=False)
             assert overlap['changed'] is False and overlap['diagnostics'][0]['code'] == 'route.external_overlap'
 
@@ -142,6 +169,8 @@ def run_engine(engine, executable, binary):
                 drift['http']['services'][name]['loadBalancer']['servers'][0]['url'] = 'http://127.0.0.1:1'
             drift_text = json.dumps(drift)
             managed_file.write_text(drift_text)
+            latest=cli('operations','list')['data'][0]['id']
+            assert cli('operations','rollback',latest,success=False)['diagnostics'][0]['code']=='operation.drift'
             blocked = cli('routes', 'disable', 'site', '--proxy', 'local', success=False)
             assert blocked['changed'] is False and blocked['diagnostics'][0]['code'] == 'ownership.drift'
             assert managed_file.read_text() == drift_text
@@ -192,7 +221,28 @@ def run_engine(engine, executable, binary):
             assert cli('operations', 'list')['data'][0]['phase'] == 'compensated'
             assert not any(r['ownership'] == 'owned' for r in cli('routes', 'list')['data'])
 
+            if engine == 'traefik':
+                external_route = cli('routes','inspect','external@file','--proxy','local')['data']
+                args_adopt = ('routes','adopt','adopted','--proxy','local','--native-id','external@file','--source',str(external_path),'--expected-fingerprint')
+                assert cli(*args_adopt,'wrong',success=False)['diagnostics'][0]['code'] == 'adoption.stale'
+                adopted = cli(*args_adopt,external_route['native_fingerprint'])
+                assert cli('routes','inspect','adopted','--proxy','local')['data']['ownership'] == 'owned'
+                cli('operations','rollback',adopted['data']['operation'])
+                assert external_path.read_text() == original_external
+                assert cli('routes','inspect','external@file','--proxy','local')['data']['ownership'] == 'observed_external'
+
             if engine == 'caddy':
+                original, headers = request(api + '/config/')
+                original_root = json.loads(original)
+                adoptable = {'@id':'external-app','match':[{'host':['adopt.localhost']}], 'handle':[{'handler':'reverse_proxy','upstreams':[{'dial':f'127.0.0.1:{servers[0].server_port}'}]}], 'terminal':True}
+                original_root['apps']['http']['servers']['web']['routes'].append(adoptable)
+                source.write_text(json.dumps(original_root))
+                request(api + '/config/',method='POST',data=original_root,headers={'If-Match':headers['Etag']})
+                inspected = cli('routes','inspect','external-app:0','--proxy','local')['data']
+                adopted = cli('routes','adopt','adopted','--proxy','local','--native-id','external-app:0','--expected-fingerprint',inspected['native_fingerprint'])
+                assert cli('routes','inspect','adopted','--proxy','local')['data']['ownership']=='owned'
+                cli('operations','rollback',adopted['data']['operation'])
+                assert cli('routes','inspect','external-app:0','--proxy','local')['data']['ownership']=='observed_external'
                 original, headers = request(api + '/config/')
                 changed = json.loads(original)
                 changed['apps']['http']['servers']['web']['routes'][0]['handle'][0]['body'] = 'manual'

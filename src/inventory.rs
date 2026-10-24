@@ -168,7 +168,9 @@ fn traefik(values: &BTreeMap<String, Value>, inventory: &mut Inventory) -> Resul
             .get("status")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
-        if !matches!(status, "enabled" | "disabled") {
+        if !matches!(status, "enabled" | "disabled")
+            && !(status == "configured" && !inventory.runtime_confirmed)
+        {
             diagnostic(
                 inventory,
                 "discovery.native_status",
