@@ -1,6 +1,6 @@
 # Implemented CLI contract — schema v1
 
-Release `v0.2.0-alpha.1` extends the original profile contract with the
+Release `v0.2.0-alpha.2` extends the original profile contract with the
 [management workflows](../site/src/content/docs/guides/management.md). Managed
 plans now support apply; native services, TLS, Caddyfile/controller authorities,
 targets, composition, history/rollback and TUI have dedicated command paths. The

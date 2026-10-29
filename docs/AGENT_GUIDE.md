@@ -1,7 +1,7 @@
-# Steward agent guide — v0.2.0-alpha.1
+# Steward agent guide — v0.2.0-alpha.2
 
 Check `steward --version` and `steward --help` before acting. This guide describes
-v0.2.0-alpha.1; earlier 0.1 alphas do not implement the full management workflows.
+v0.2.0-alpha.2; earlier 0.1 alphas do not implement the full management workflows.
 Use `--json` for machine-readable command results. Help, version, completion scripts
 and the interactive TUI have their own output forms.
 
@@ -9,7 +9,7 @@ and the interactive TUI have their own output forms.
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.2.0-alpha.1
+  sh -s -- --version v0.2.0-alpha.2
 steward proxies list --json
 steward routes list --json
 steward services list --json

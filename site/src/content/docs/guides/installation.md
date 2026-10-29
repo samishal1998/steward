@@ -3,7 +3,7 @@ title: Installation
 description: Install Steward's management alpha on Linux or macOS with a checksum-verified shell installer.
 ---
 
-Steward **v0.2.0-alpha.1** includes HTTP/TLS route management, Caddyfile/controller workflows, checked plans, native services, recovery, shell completion, and an interactive TUI. See [management workflows](../management/) for each command's authority and deployment requirements.
+Steward **v0.2.0-alpha.2** includes HTTP/TLS route management, Caddyfile/controller workflows, checked plans, native services, recovery, shell completion, and an interactive TUI. See [management workflows](../management/) for each command's authority and deployment requirements.
 
 ## Linux and macOS
 
@@ -28,7 +28,7 @@ Supported downloads:
 | macOS | Intel x86_64 | Native macOS executable |
 | macOS | Apple Silicon ARM64 | Native macOS executable |
 
-The installer follows GitHub's latest stable release. While there is no stable release, it explicitly selects **v0.2.0-alpha.1**. Other prereleases do not silently become stable updates.
+The installer follows GitHub's latest stable release. While there is no stable release, it explicitly selects **v0.2.0-alpha.2**. Other prereleases do not silently become stable updates.
 
 It verifies the release installer’s checksum, then the binary archive’s pinned checksum and the executable’s product/version. Installation is staged and atomically placed in `~/.local/bin/steward`. It does not require sudo, change shell configuration, start services, or enable a proxy API.
 
@@ -38,7 +38,7 @@ The machine needs `curl`, `tar`, standard Unix tools, and either `sha256sum` or 
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.2.0-alpha.1 --dir "$HOME/bin"
+  sh -s -- --version v0.2.0-alpha.2 --dir "$HOME/bin"
 ```
 
 `STEWARD_VERSION` and `STEWARD_BIN_DIR` are also accepted. `BEDOUIN_BIN_DIR` is supported for compatibility with Bedouin-generated installers. Custom installation directories must be absolute and writable by your user.
@@ -60,7 +60,7 @@ Checksum checks provide download integrity under the GitHub/HTTPS trust boundary
 If Bedouin is already installed:
 
 ```sh
-bedouin-installer samishal1998/steward@v0.2.0-alpha.1
+bedouin-installer samishal1998/steward@v0.2.0-alpha.2
 ```
 
 Maintainers use the standalone Bedouin generator's `--generate` mode to resolve platform URLs/digests without a provisioning config. The shell installer itself does not require Bedouin.

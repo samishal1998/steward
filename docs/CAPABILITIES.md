@@ -1,8 +1,8 @@
 # Steward capabilities and evidence
 
-## Current management release — v0.2.0-alpha.1
+## Current management release — v0.2.0-alpha.2
 
-Version `0.2.0-alpha.1` packages the previously verified management expansion, including
+Version `0.2.0-alpha.2` packages the previously verified management expansion, including
 checked apply, native TLS/file/controller modes, proxy/native-service lifecycle,
 targets, composition, history/rollback, adoption, dynamic completion, TUI and a
 versioned AppTrail reader/export pair. See [feature coverage and actual execution

@@ -10,6 +10,12 @@ real route/TLS/TUI paths, and generates the checksum-pinned installer through
 Bedouin standalone 0.23.1. Public Pages promotion follows successful release
 publication. The records below preserve the earlier branch-development evidence.
 
+The alpha.1 release attempt stopped before publication on an Intel macOS fixture
+compatibility issue (`openssl x509 -copy_extensions`). The user selected a fresh
+**v0.2.0-alpha.2** release with portable certificate extension input; the original
+tag remains immutable. See [progress](PROGRESS.md) for the recorded failed run and
+subsequent publication evidence.
+
 Requested scope: the missing-feature list plus proxy update/remove, dynamic ID
 completion, history, rollback and explicit adoption. Nginx, Windows and custom
 Docker-label mappings remain deferred by the user's follow-up. Apache is excluded.

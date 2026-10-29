@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-24 — v0.2.0-alpha.1 packaging and public documentation prepared.** Workspace:
+**Updated: 2026-10-29 — v0.2.0-alpha.2 packaging and public documentation prepared.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -18,9 +18,18 @@ The Bedouin standalone generator stays pinned and checksum-verified at 0.23.1.
 Pages watches source-imported schemas as well as guides, examples and installer.
 
 Current documentation and agent references describe the same alpha. The documented
-fallback is `v0.2.0-alpha.1`; the release is published before `main`/Pages promotion
+fallback is `v0.2.0-alpha.2`; the release is published before `main`/Pages promotion
 so the public selector always has downloadable assets. Actual publication evidence
 is recorded after the workflow and public installation checks complete.
+
+The first tag attempt `v0.2.0-alpha.1` at `f4cbe56c…` passed source CI and three
+native release targets. Intel macOS built/executed its bundle and passed route/
+Caddy TLS checks, but its LibreSSL `x509` command rejected the fixture's OpenSSL-only
+`-copy_extensions` option. [Run 40935350575](https://github.com/samishal1998/steward/actions/runs/40935350575)
+failed before publication; no public assets were uploaded. The user chose a fresh
+`v0.2.0-alpha.2` tag rather than moving alpha.1. The fixture now supplies explicit
+SAN/key-usage extensions through portable `-extfile`; trust/hostname assertions
+remain required. Alpha.1 is retained as historical failed-tag evidence.
 
 ### Management expansion — 2026-10-24
 

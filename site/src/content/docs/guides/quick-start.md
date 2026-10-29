@@ -3,7 +3,7 @@ title: Get started
 description: Inspect an existing proxy, put a local app behind a hostname, and change routes with CLI commands.
 ---
 
-Install [Steward](../installation/) and check for **v0.2.0-alpha.1** with `steward --version`. Add your local bin directory to `PATH`, or replace `steward` below with `~/.local/bin/steward`.
+Install [Steward](../installation/) and check for **v0.2.0-alpha.2** with `steward --version`. Add your local bin directory to `PATH`, or replace `steward` below with `~/.local/bin/steward`.
 
 ## 1. See what your proxy is serving
 
