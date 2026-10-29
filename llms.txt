@@ -1,6 +1,6 @@
 # Steward
 
-> Standalone Rust CLI for native Caddy/Traefik inventory and explicit, recoverable local HTTP route management. Direct commands require v0.1.0-alpha.2. Preserve native identities, partial coverage, external ownership and operation recovery boundaries.
+> Steward v0.2.0-alpha.1 is a standalone Rust CLI/TUI for Caddy/Traefik routes, native services, checked plans and recoverable operations. Preserve native identities, explicit authority, ownership, partial coverage and recovery boundaries.
 
 ## Start here
 
@@ -9,14 +9,14 @@
 - [CLI reference](https://samishal1998.github.io/steward/reference/cli/): command and configuration contracts.
 - [Installation](https://samishal1998.github.io/steward/guides/installation/): checksum-verified Linux/macOS installation.
 - [Completion](https://samishal1998.github.io/steward/guides/completion/): Bash, Zsh, Fish, PowerShell and Elvish.
+- [Management workflows](https://samishal1998.github.io/steward/guides/management/): plans/apply, TLS, native services, proxy lifecycle, SSH/container targets, history/rollback, composition and TUI.
+- [Export schema](https://samishal1998.github.io/steward/schemas/export.schema.json): versioned read-only AppTrail inventory.
 
 ## Operational rules
 
-Check `steward --version` and `--help`; use `--json` for operations. `proxies add --engine ... --endpoint ...` stores an inventory-only connection. Writes require explicit local file authority and `--tls http`; `routes add/update/disable/enable/remove` make live changes. Existing external resources are not adopted by name. On rejected writes inspect `changed`, diagnostic and operation ID; inspect/recover pending operations before retrying. Manifest `plan --file` remains read-only; generic apply, TLS setup, Docker-controller writes and native services are not available in this slice.
+Check `steward --version` and `--help`; use `--json` for operations. API-only connections are inventory-only. Writes require explicit native authority; direct route and service commands make live changes. Managed plans are apply-ready only with matching owner/state/source/native/tool fingerprints. Profile-only `--config` previews remain non-applicable. Adoption is explicit and checked. On rejected writes inspect `changed`, diagnostics and operation IDs; recover pending work or guard a rollback rather than forcing restoration over drift. Targeted commands execute in the SSH/container target's context.
 
 ## Project
-
-- [Management expansion (development branch)](https://github.com/samishal1998/steward/blob/feature/complete-management/site/src/content/docs/guides/management.md): 0.2.0-dev.1 plans/apply, TLS, Caddyfile/controller support, native services, lifecycle, targets, history/rollback, composition and TUI. These require a branch build; the public installer remains alpha.2.
 
 - [Repository](https://github.com/samishal1998/steward): source, schemas and synthetic fixtures.
 - [Releases](https://github.com/samishal1998/steward/releases): native archives, checksums and pinned installers.

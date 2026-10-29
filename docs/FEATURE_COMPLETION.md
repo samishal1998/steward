@@ -1,5 +1,15 @@
 # Feature completion work
 
+## Release packaging update
+
+The user subsequently authorized publishing Steward `v0.2.0-alpha.1` and its
+Starlight site on `main`. That release packages the implementation below. The
+release workflow requires successful source acceptance for the tagged commit,
+builds four native targets, verifies complete extracted bundles, exercises the
+real route/TLS/TUI paths, and generates the checksum-pinned installer through
+Bedouin standalone 0.23.1. Public Pages promotion follows successful release
+publication. The records below preserve the earlier branch-development evidence.
+
 Requested scope: the missing-feature list plus proxy update/remove, dynamic ID
 completion, history, rollback and explicit adoption. Nginx, Windows and custom
 Docker-label mappings remain deferred by the user's follow-up. Apache is excluded.
@@ -29,7 +39,7 @@ Live acceptance uses disposable processes, files, containers and uniquely named
 test services. Public DNS/ACME, logout/reboot and remote platforms require actual
 execution evidence before support claims are promoted. Record results below.
 
-## Current evidence (2026-10-24)
+## Branch-development evidence (2026-10-24)
 
 Development version: `0.2.0-dev.1`. The shipped installer remains on alpha.2.
 Both repositories use `feature/complete-management`; neither main branch has been
@@ -97,9 +107,9 @@ older boolean overrides. Temporary process-sampling workflows/examples were remo
   unit files or test containers remained. Temporary diagnostic workflows, sampled
   process scripts and timing examples were removed from the feature branch.
 
-The implementation is available for review on `feature/complete-management` in
-both repositories. No merge or release was requested; the installer still selects
-the existing alpha.2 distribution. External public ACME/DNS, system-scope runtime
+At the end of that development task, the implementation was available for review
+on `feature/complete-management` in both repositories; publication was a later
+request. External public ACME/DNS, system-scope runtime
 and logout/reboot acceptance remain deployment-specific verification boundaries,
 not inferred from these user-scope lifecycle tests.
 

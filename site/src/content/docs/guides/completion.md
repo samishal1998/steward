@@ -50,8 +50,8 @@ steward completions powershell | Out-String | Invoke-Expression
 eval (steward completions elvish | slurp)
 ```
 
-The installer does not edit shell startup files. Released alpha.2 completion covers
-command names and options. In the 0.2.0-dev.1 management branch, add `--dynamic`:
+The installer does not edit shell startup files. Static completion covers command
+names and options. In v0.2.0-alpha.1, add `--dynamic` for saved proxy/route IDs:
 
 ```sh
 source <(steward completions bash --dynamic)

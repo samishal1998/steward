@@ -3,7 +3,7 @@ title: Get started
 description: Inspect an existing proxy, put a local app behind a hostname, and change routes with CLI commands.
 ---
 
-Install [Steward](../installation/) and check `steward --version`. These direct commands require **v0.1.0-alpha.2**. Add your local bin directory to `PATH`, or replace `steward` below with `~/.local/bin/steward`.
+Install [Steward](../installation/) and check for **v0.2.0-alpha.1** with `steward --version`. Add your local bin directory to `PATH`, or replace `steward` below with `~/.local/bin/steward`.
 
 ## 1. See what your proxy is serving
 
@@ -34,7 +34,8 @@ caddy run --config "$PWD/caddy-http.json"
 Keep Caddy running. In another terminal, start your app. A simple static example is:
 
 ```sh
-python3 -m http.server 3000 --bind 127.0.0.1
+curl -fsSL https://samishal1998.github.io/steward/downloads/examples/static-server.py -o static-server.py
+python3 static-server.py --port 3000 --bind 127.0.0.1
 ```
 
 In a third terminal, connect the existing proxy with explicit file authority, then add the route:
@@ -52,7 +53,7 @@ curl --resolve app.localhost:8088:127.0.0.1 http://app.localhost:8088/
 
 **`routes add` makes a live change.** Steward validates the full candidate, records a recoverable operation, publishes the source atomically, activates it, and verifies the native route plus an HTTP request through the proxy. No route-intent YAML or separate `apply` command is needed. The upstream root path must return HTTP 2xx/3xx for verification.
 
-For your existing JSON-based Caddy server, use its actual startup file, server name, and endpoint. This initial write mode requires one local HTTP listener and `automatic_https.disable: true`. Caddyfile imports, TLS setup, Docker controllers, and remote/container file mappings retain their own roadmap gates.
+For your existing JSON-based Caddy server, use its actual startup file, server name, and endpoint. This HTTP example requires one local listener and `automatic_https.disable: true`. The [management guide](../management/) covers Caddyfiles/imports, TLS, Docker controllers, proxy installation, and SSH/container targets.
 
 ## 3. Move, pause, or remove your app
 
@@ -66,7 +67,7 @@ steward routes enable app --proxy local
 steward routes remove app --proxy local
 ```
 
-These commands change only routes created by this Steward state directory. Existing external routes keep their native identity and remain external. A matching name or hostname is not an ownership receipt.
+These commands change only receipt-owned routes in this Steward state directory. Existing external routes keep their native identity; explicit checked adoption is a separate command. A matching name or hostname is not an ownership receipt.
 
 ## 4. Use a Traefik watched directory
 
@@ -91,10 +92,10 @@ steward operations list --json
 steward operations recover OPERATION_ID --json
 ```
 
-A failed activation is compensated when the published input and runtime still match the operation. An interrupted or drifted operation blocks further writes. `recover` compensates an unfinished operation; it does not undo an already verified operation. Inspect the diagnostic and operation ID before retrying.
+A failed activation is compensated when the published input and runtime still match the operation. An unfinished operation blocks further writes. Use `recover` for an interrupted route write, or `operations rollback ID` to reverse a verified operation while state/source/native checks still match. Inspect the diagnostic and operation ID before retrying.
 
 ## Try offline output instead
 
 The [saved-response examples](../planning/) still work with `--config` and `plan --file`. Those are read-only previews and always return `applicable: false`.
 
-Next: [shell completion](../completion/) · [CLI reference](../../reference/cli/) · [agent guide](../agents/).
+Next: [management workflows](../management/) · [shell completion](../completion/) · [CLI reference](../../reference/cli/) · [agent guide](../agents/).

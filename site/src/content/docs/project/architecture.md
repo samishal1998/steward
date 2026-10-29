@@ -1,61 +1,64 @@
 ---
 title: Architecture & roadmap
-description: Steward's independent route/service model, ownership boundary, and staged delivery.
+description: Steward's independent route/service model, implemented management alpha, and deployment evidence boundaries.
 ---
 
 ## One executable, separate capabilities
 
-Steward is a standalone Rust project. The CLI and planned TUI use the same application logic. Route management and native-service management are independently useful; composition is explicit. There is no required Steward daemon or Apptrail server/database.
+Steward is one standalone Rust package. CLI and TUI use the same application logic.
+The OS supervises applications; there is no required Steward daemon or AppTrail
+server/database. Route and service commands remain independently useful, while
+composition is explicit.
 
-The current implementation is one Cargo package with internal modules. It avoids a generic shared provider framework and cross-language runtime coupling. The [repository decision](https://github.com/samishal1998/steward/blob/main/docs/decisions/repository-placement.md) documents why Apptrail’s dashboard observations are not Steward’s infrastructure authority.
+## Implemented in v0.2.0-alpha.1
 
-## Current direct-route alpha
+- Caddy/Traefik native inventory, qualified file snapshots and discovery candidates.
+- Direct HTTP/TLS route lifecycle with explicit JSON/Caddyfile/controller/directory authority.
+- Saved managed plans with input revalidation and no implicit pruning.
+- Writer locks, ownership receipts, operation history, guarded recovery and rollback.
+- Proxy artifact installation, setup, upgrade and uninstall through native managers.
+- systemd/launchd service lifecycle, enablement, status and bounded logs.
+- Service-first/readiness-gated `up` and route-first `down` with explicit retention.
+- SSH/container execution targets, dynamic completion and an interactive TUI.
+- Versioned redacted export for the optional AppTrail reader.
 
-Implemented:
+Inventory does not grant ownership. Native configuration, route activation,
+application readiness, DNS reachability and certificate trust are separate facts.
 
-- Explicit Caddy/Traefik binding profiles and native API inventory.
-- Native identity, status, freshness, fingerprints, and partial coverage.
-- Offline synthetic snapshots with honest qualification.
-- Exact-host route validation and deterministic conflict previews.
-- Versioned JSON results and bounded transport/parser/evidence handling.
-- Stored API connections without YAML and completions for five shells.
-- Receipt-owned HTTP route add/update/disable/enable/remove on explicit local
-  Caddy JSON and Traefik watched-directory authority.
-- State/input locks, a bounded durable operation journal, native/routing checks,
-  failed-activation compensation and interrupted-operation recovery.
+## Verified boundaries
 
-Inventory success does not grant ownership or make a proxy safely writable. Native reported configuration, route activation, upstream health, DNS, and TLS readiness are separate evidence levels.
+Source acceptance uses real user-scope systemd/launchd workflows on Linux x86_64
+and macOS ARM64, with Caddy 2.11.7 and Traefik 3.7.14. Tests include source drift,
+writer contention, failed activation, interruption, rollback and composition.
+Linux additionally exercises Caddy Docker-controller 2.13.1 timer/event/restart
+behavior, a container target and strict-key SSH delegation.
 
-## Beyond the first writable slice
+The release matrix separately builds and executes all four downloadable native
+targets, checks their extracted bundles, and exercises route/TLS/TUI behavior.
+These checks establish the documented scenarios. Public ACME/DNS, system-scope
+runtime, logout/reboot and additional custom modules/topologies need on-target
+acceptance rather than inference from a successful build.
 
-The initial operation path implements those safeguards for local HTTP-only file-backed routes. Its journal retains one latest operation; broader audit history and authority/setup modes are later refinements. Live checks use disposable Caddy 2.11.7 and Traefik 3.7.14 processes. This does not complete the full proxy-management milestone.
+## Remaining roadmap
 
-Compatibility experiments must prove:
-
-- **Ordinary Caddy:** preserve full authoritative input, validate/reload complete configuration, preserve external sites and modules, and recover owned changes.
-- **Caddy Docker controller:** managed base-only edits activate without invented Docker events; label routes survive later events/restarts; the controller remains the effective writer.
-- **Traefik files:** correct startup authority, watched-directory integration, parent-directory mounts, atomic replacement, final-route removal, and coexistence with external/Docker routes.
-
-Both proxy families remain in scope for the management release. A readable API is not permission to overwrite controller-generated configuration.
-
-## Delivery roadmap
-
-| Stage | Capability |
+| Area | Next work |
 | --- | --- |
-| Available alpha | Native inventory/previews, direct local HTTP routes, receipts/recovery, shell completion |
-| Next foundation | Broader authority/controller/TLS compatibility, historical operations and manifest apply |
-| Proxy-management release | Caddy ordinary/controller modes, Traefik watched files, explicit setup/install, CLI/TUI |
-| Native services | General foreground commands through Linux systemd/macOS launchd, independently of proxies/Docker |
-| Composition | Readiness-gated service-first publication and route-first shutdown with partial outcomes |
-| Optional integration | Existing Apptrail discovery first; later versioned export/read/control contracts if useful |
+| Deployment coverage | Public certificate issuance/DNS, system scope, boot/logout, additional proxy/controller/network combinations |
+| Broader route semantics | Extend management beyond the explicitly supported exact-host, one-upstream definitions with preservation evidence |
+| Additional adapters | Nginx and other native managers/platforms remain deferred |
+| Windows | Deferred for Steward; the independent AppTrail importer retains AppTrail's existing platform matrix |
+| Label configuration | Known labels are read-only; custom mapping languages remain deferred |
+| AppTrail control | The current export/import boundary is read-only; privileged dashboard control is a separate design |
 
-Docker labels stay read-only. Known label/file fallback discovery is planned; custom mapping languages are deferred. Apache is excluded. Other managers/platforms are later adapters, not approximations of systemd/launchd semantics.
+Apache remains outside the agreed scope.
 
-## Source-backed handoff
+## Source-backed records
 
-The full accepted pack is preserved in [docs/planning](https://github.com/samishal1998/steward/tree/main/docs/planning). Its old examples are design inputs, not proof of implemented commands. Current contracts, capability status, and actual test records are outside that archive:
+The original product pack is preserved in [docs/planning](https://github.com/samishal1998/steward/tree/main/docs/planning).
+Its historical examples are design inputs, not the current executable contract.
+Use these records for implemented behavior and actual evidence:
 
-- [Technical transfer](https://github.com/samishal1998/steward/blob/main/docs/APPTRAIL_TECHNICAL_TRANSFER.md)
-- [Implementation plan](https://github.com/samishal1998/steward/blob/main/docs/IMPLEMENTATION_PLAN.md)
+- [CLI contract](https://github.com/samishal1998/steward/blob/main/docs/CLI_CONTRACT.md)
+- [Feature completion and verification](https://github.com/samishal1998/steward/blob/main/docs/FEATURE_COMPLETION.md)
 - [Capability matrix](https://github.com/samishal1998/steward/blob/main/docs/CAPABILITIES.md)
-- [Execution evidence](https://github.com/samishal1998/steward/blob/main/docs/PROGRESS.md)
+- [Execution history](https://github.com/samishal1998/steward/blob/main/docs/PROGRESS.md)

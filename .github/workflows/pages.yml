@@ -3,7 +3,7 @@ name: Documentation
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'install.sh', 'llms.txt', 'docs/AGENT_GUIDE.md', 'examples/**', 'fixtures/**', '.github/workflows/pages.yml']
+    paths: ['site/**', 'install.sh', 'llms.txt', 'docs/AGENT_GUIDE.md', 'examples/**', 'fixtures/**', 'schemas/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:

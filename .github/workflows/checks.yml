@@ -29,6 +29,8 @@ jobs:
             ~/.cargo/registry
             target/debug
           key: rust-1.98.0-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            rust-1.98.0-${{ runner.os }}-${{ runner.arch }}-
       - name: Check formatting
         run: cargo +1.98.0 fmt --check
       - name: Tests (synthetic fixtures and disposable HTTP servers)

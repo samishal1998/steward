@@ -1,15 +1,21 @@
 ---
 title: Route planning
-description: Understand exact-host previews, conflicts, fingerprints, and why this alpha does not apply changes.
+description: Review route intent, save an applicable plan, and revalidate it before making changes.
 ---
 
-## The current boundary
+## Save a managed plan
 
-The alpha validates route-only intent and compares it with inventory. It does not own definitions, write files, activate a proxy, or create an apply-ready operation.
+Register an existing proxy with explicit writable authority first; the
+[management guide](../management/) shows Caddy JSON/Caddyfile and Traefik examples.
+Then review route intent without publishing it:
 
 ```sh
-steward --config edge.yaml plan --file routes.yaml --json
+steward plan --file routes.yaml --out "$PWD/reviewed-plan.json" --json
 ```
+
+Use a new absolute output path. The saved artifact contains the requested routes,
+state identity, and source/native/tool fingerprints. Private configuration backups
+belong in the operation journal, not the plan output.
 
 ## Route-only input
 
@@ -28,42 +34,64 @@ routes:
 services: []
 ```
 
-Each route is a complete specification for its ID. IDs are unique. The manifest and binding scopes must match. Only explicitly referenced bindings are contacted.
+Each route is a complete specification for its ID. A plan upserts only supplied
+IDs; empty or omitted route collections never prune resources. Routes use one
+concrete ASCII/punycode hostname and one HTTP(S) upstream origin, without URL
+credentials, query strings, fragments, or implicit path rewriting. TLS policies
+are `http`, `internal`, or `public` and must match the registered native setup.
 
-The first route subset uses one concrete ASCII/punycode DNS hostname and one explicit HTTP(S) upstream origin. Wildcards, host ports, URL credentials, fragments, queries, and implicit upstream path rewrites are rejected. TLS modes express intent: `http`, `internal`, or `public`; the alpha does not configure or validate certificate issuance from that declaration.
+Service-and-route composition uses its own stack format and `up`/`down` commands.
+Keep the `services` array empty in a route-only plan.
 
-Empty/absent route collections request no changes and do not prune resources. Nonempty service specifications return an unsupported-capability error before connecting to proxies; native services are a later milestone.
+## Apply the reviewed artifact
 
-## Reading the result
+```sh
+steward apply --plan "$PWD/reviewed-plan.json" --yes --json
+```
+
+Apply rechecks the owner, state, source, native configuration and selected tool
+fingerprints before writing. A changed input rejects the saved plan; generate a
+fresh one instead of overriding that check. Every write uses the same ownership,
+conflict, activation and recovery path as the direct route commands.
+
+Multi-proxy application is sequential. If a later proxy fails, the error reports
+the operation IDs already applied. Inspect those operations before retrying or
+rolling back. `--yes` accepts this plan; it does not bypass changed inputs or
+unsupported authority.
+
+## Read-only profile previews
+
+An explicitly supplied `--config` profile selects the compatible read-only path:
+
+```sh
+steward --config examples/read-only.yaml plan --file examples/routes-only.yaml --json
+```
 
 ```json
 {
   "schema_version": "1",
   "status": "planned_read_only",
   "changed": false,
-  "data": {
-    "applicable": false
-  }
+  "data": { "applicable": false }
 }
 ```
 
-The complete result also includes proposed actions, upstream/TLS intent, conflict diagnostics, and binding/source/native fingerprints. Equivalent inputs and snapshots produce deterministic plan data.
+This path can use saved snapshots and never treats API access as write authority.
+It reports exact/wildcard/catch-all overlaps, partial coverage and missing evidence.
+Its result cannot be passed to `apply`. Offline examples are available in the full
+release archive and as [profile](../../downloads/examples/read-only.yaml),
+[intent](../../downloads/examples/routes-only.yaml),
+[Caddy snapshot](../../downloads/fixtures/caddy/snapshot.json), and
+[Traefik snapshot](../../downloads/fixtures/traefik/snapshot.json) downloads.
 
-Existing exact, wildcard, catch-all, and uncertain overlaps are conservatively reported. Disabled definitions are still configured resources. Unrecognized native behavior prevents a complete conflict assessment. A name resembling a Steward resource remains external without ownership evidence.
+## Inspect or reverse an operation
 
-## Why `applicable` stays false
+```sh
+steward operations list --json
+steward operations inspect OPERATION_ID --json
+steward operations rollback OPERATION_ID --json
+```
 
-Before writes can be enabled, Steward needs:
-
-- An explicitly approved authoritative file/controller integration.
-- Ownership receipts and exact native identity/path fingerprints.
-- A scoped writer lock and durable operation journal.
-- Revalidation immediately before mutation.
-- Verified activation and drift-aware compensation/recovery.
-- Proxy-context network and TLS verification appropriate to the operation.
-
-The alpha reports missing apply/setup/network prerequisites rather than turning read access into permission to mutate.
-
-`apply --yes` still returns `capability.apply_unavailable`. It does not load an arbitrary plan, initialize a proxy client, or bypass the missing foundation.
-
-See the [architecture and roadmap](../../project/architecture/) for the full management scope and release gates.
+Rollback requires the completed operation's state/source/runtime to still match
+and rechecks conflicts. `operations recover ID` is for unfinished route writes.
+Both refuse restoration over newer intent; neither adopts an external route by name.

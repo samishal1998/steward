@@ -1,10 +1,10 @@
 ---
 title: Give every route a clear way home.
-description: Inspect Caddy and Traefik routes and manage explicit local HTTP routes with a standalone Rust CLI.
+description: Manage Caddy and Traefik routes, native services, and checked operations with a standalone Rust CLI and TUI.
 template: splash
 hero:
   title: 'Give every route<br /><span class="hero-accent">a clear way home.</span>'
-  tagline: Native routes. Explicit ownership. Careful changes. Steward helps you see what exists and manage your own routes with clear, dependable commands.
+  tagline: Native routes. Explicit ownership. Careful changes. Manage proxies and services with clear commands, checked plans, and recoverable operations.
   actions:
     - text: Install the alpha
       link: ./guides/installation/
@@ -19,7 +19,7 @@ hero:
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import InventoryPreview from '../../components/InventoryPreview.astro';
 
-<div className="alpha-banner"><span>EXPLICIT ROUTES ALPHA</span> Available now: native inventory, shell completion, and recoverable local HTTP route commands. Broader proxy modes, TLS setup, services, and TUI follow their roadmap gates.</div>
+<div className="alpha-banner"><span>MANAGEMENT ALPHA · v0.2.0-alpha.1</span> HTTP/TLS routes, Caddyfile and controller workflows, native services, plans, recovery, and a terminal UI. Use the documented authority and deployment requirements for each workflow.</div>
 
 <InventoryPreview />
 
@@ -35,10 +35,10 @@ A hostname alone does not tell you who owns a route, whether it is loaded, or ho
     Disabled routes, unfamiliar matchers, and partial inventories stay visible. An inaccessible API never becomes a reassuring empty list.
   </Card>
   <Card title="Make a careful next step." icon="document">
-    Add, update, pause, or remove your owned HTTP routes with direct commands. Explicit file authority, native checks, receipts, and guarded recovery stay part of the operation.
+    Add, update, pause, or remove owned routes. Review a saved plan, check its inputs again, and inspect the operation receipt. Guarded recovery keeps changes accountable.
   </Card>
   <Card title="Small tool. Clear boundaries." icon="padlock">
-    One Rust executable, no required daemon, and no Apptrail dependency. Future routes and native services remain independently useful capabilities.
+    One Rust executable and no required daemon. systemd or launchd supervises your services. CLI, TUI, SSH/container targets, and optional AppTrail exports use explicit boundaries.
   </Card>
 </CardGrid>
 
@@ -52,10 +52,12 @@ curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
 
 ```sh
 ~/.local/bin/steward --help
+~/.local/bin/steward tui
 ```
 
 There is no stable release yet. Install the current documented alpha, then connect an existing proxy. The CLI installer does not enable APIs or start services.
 
 <LinkCard title="Put your first app behind a hostname." description="Start with simple inventory and local HTTP route use cases, using commands rather than a Steward YAML profile." href="./guides/quick-start/" />
+<LinkCard title="Go from a route to a managed workflow." description="Plans, TLS, native services, composition, history, and remote targets." href="./guides/management/" />
 
 <div className="landing-signoff">NATIVE TOOLS. EXPLICIT OWNERSHIP. NO GUESSWORK.</div>

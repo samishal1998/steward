@@ -5,7 +5,14 @@ description: Configure explicit Caddy or Traefik endpoints, authorization files,
 
 ## Explicit bindings
 
-Every command selects a version-1 binding profile through `--config`. Steward does not scan ports, choose the first installed proxy, or enable access as part of discovery.
+Save a connection once with `proxies add`, or select a version-1 binding profile with `--config` for reads and previews. Stored connections are used when `--config` is absent:
+
+```sh
+steward proxies add edge --engine traefik --endpoint http://127.0.0.1:8080
+steward proxies list
+```
+
+An API-only connection grants inventory access. Writable commands require separately declared native authority. Discovery never chooses or enables a proxy automatically.
 
 ```yaml
 schema_version: "1"
@@ -52,7 +59,7 @@ proxies:
 
 Nested configuration is inspected with native JSON references. Unfamiliar matchers/modules and dynamic handlers remain partial; a readable configuration does not prove controller identity, ownership, reachability, or safe management compatibility.
 
-There is no Caddyfile/controller writer in the current alpha. It does not reload plain Caddy or overwrite Caddy Docker-controller output.
+Caddy JSON changes are validated and conditionally activated. Caddyfile connections use `--caddyfile`, preserving existing imports and adapting the complete candidate. For a Docker controller's real base file, add `--docker-controller`: the controller performs activation. See [management workflows](../management/).
 
 ## Authorization
 
@@ -64,7 +71,7 @@ Bearer YOUR_READ_ONLY_TOKEN
 
 For Basic authentication, use `Basic ` plus the Base64 encoding of `username:password`. Protect the file with appropriate user permissions. The value is read each command, limited to 8 KiB, and omitted from outputs/errors. Credentials are not inherited from Apptrail.
 
-No redirects are followed. HTTPS uses system CA roots; no insecure, custom-CA, or mTLS switch currently exists. API endpoints cannot contain URL credentials, query parameters, or fragments.
+No redirects are followed. API HTTPS uses system CA roots; API endpoints cannot contain URL credentials, query parameters, or fragments. Route verification has a separate `--ca-file` setting for internal frontend TLS. That setting does not change API trust or provide mTLS credentials.
 
 ## Unix sockets
 
@@ -84,4 +91,4 @@ Set `snapshot_file` to an explicitly prepared native-response fixture. No networ
 
 Requests are bounded to 12 seconds, with a 30-second inventory deadline per binding. Bodies are capped at 8 MiB and native arrays at 10,000 records. Retained evidence expansion is limited to 32 MiB per binding and 64 MiB per command.
 
-Denied or failed access is a diagnostic, not an empty inventory. Other successful bindings may still be returned as partial results. Docker/file fallback readers and automatic host/native-runtime detection remain planned.
+Denied or failed access is a diagnostic, not an empty inventory. Other successful bindings may still be returned as partial results. `proxies discover --probe` reports native/API candidates; `--docker unix:///var/run/docker.sock` adds known-label observations. `proxies inspect-file --engine ENGINE --file FILE` supplies qualified offline native-file evidence.

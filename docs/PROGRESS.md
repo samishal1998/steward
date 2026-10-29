@@ -1,10 +1,26 @@
 # Steward progress
 
-**Updated: 2026-10-24 — management expansion implemented and verified on Linux/macOS feature branches.** Workspace:
+**Updated: 2026-10-24 — v0.2.0-alpha.1 packaging and public documentation prepared.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
 ## Completed handoff
+
+### Management release and Pages publication
+
+The user authorized publication of `v0.2.0-alpha.1` and Steward's current docs.
+The existing native release and Astro Starlight workflows are retained and updated:
+archives now include offline examples/fixtures and agent guidance; extracted bundle
+and installed-binary smoke checks cover the current command tree, completion,
+isolated managed state, plan/apply and export. Four native release jobs exercise
+real route/TLS/TUI behavior, and publication requires source CI for the tagged SHA.
+The Bedouin standalone generator stays pinned and checksum-verified at 0.23.1.
+Pages watches source-imported schemas as well as guides, examples and installer.
+
+Current documentation and agent references describe the same alpha. The documented
+fallback is `v0.2.0-alpha.1`; the release is published before `main`/Pages promotion
+so the public selector always has downloadable assets. Actual publication evidence
+is recorded after the workflow and public installation checks complete.
 
 ### Management expansion — 2026-10-24
 

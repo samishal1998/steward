@@ -1,20 +1,21 @@
 # Implemented CLI contract — schema v1
 
-Development branch `0.2.0-dev.1` extends this released alpha.2 contract with the
+Release `v0.2.0-alpha.1` extends the original profile contract with the
 [management workflows](../site/src/content/docs/guides/management.md). Managed
 plans now support apply; native services, TLS, Caddyfile/controller authorities,
 targets, composition, history/rollback and TUI have dedicated command paths. The
 profile-only read/preview contract below remains compatible. Export schema:
 [`schemas/export.schema.json`](../schemas/export.schema.json).
 
-This document describes the current alpha.2 implementation, not the archived
-future command grammar. Direct local HTTP route writes are available through
-stored explicit authority; manifest apply and native services remain unavailable.
+This document describes implemented behavior, not the archived future grammar.
+The public [CLI reference](https://samishal1998.github.io/steward/reference/cli/)
+and management guide cover all current command groups and deployment requirements.
 
 ## Direct commands, authority and recovery
 
-Canonical groups are `proxies`, `routes`, `operations`, and `completions`; singular
-`proxy`/`route` remain aliases. Without `--config`, inventory uses stored connections:
+Canonical groups include `proxies`, `routes`, `services`, `operations`, and
+`completions`; singular proxy/route/service names remain aliases. Without
+`--config`, inventory uses stored connections:
 `proxies add ID --engine caddy|traefik --endpoint URL [--auth-file ABSOLUTE_FILE]`.
 API-only connections remain read-only and can use remote or Unix endpoints.
 
@@ -22,9 +23,11 @@ Writable connections additionally declare `--config-file ABSOLUTE_FILE` and
 `--listener NAME`. Caddy uses the complete JSON startup source and a same-environment
 validator (`--caddy-bin`, default PATH `caddy`); source/native equality and ETags
 are required. Traefik adds `--directory ABSOLUTE_DIRECTORY`, whose exact path and
-watch setting must appear in the static startup source. Writable APIs are local
-loopback only; HTTP frontends are explicit and TLS/setup/controller modes remain
-gated. Native compatibility tests use Caddy 2.11.7 and Traefik 3.7.14.
+watch setting must appear in the static startup source. Caddyfiles add `--caddyfile`
+and an explicit TCP listener; controller base files add `--docker-controller`.
+Writes run in the selected local/SSH/container target with explicit native source
+authority. HTTP and TLS modes must match the listener/issuer setup. Native
+compatibility tests use Caddy 2.11.7 and Traefik 3.7.14.
 
 ```sh
 steward routes add ID --proxy PROXY --host HOST --upstream URL --tls http
@@ -49,16 +52,20 @@ drift blocks writes/recovery. Symlink and hard-linked inputs are rejected.
 
 State defaults to `$XDG_STATE_HOME/steward` or `~/.local/state/steward`; explicit
 `--state-dir` wins over `STEWARD_STATE_DIR`. Existing state directories must be
-private. Limits: 16 connections, 128 receipts, 1 MiB state/source inputs, one
-retained operation up to 8 MiB. Receipt state survives terminal journal replacement.
-Caddy validation has a 15-second deadline; active-route probing has a 15-second
-aggregate deadline with at most four seconds per request. Native polling has a
-10-second observation window; individual bounded API reads can extend a final poll.
+private and caller-owned. Limits: 16 connections, 128 route receipts, 1 MiB
+state/source inputs and an 8 MiB per-operation journal. Route/service history is
+bounded at 1024 entries / 256 MiB each. Receipt state persists independently.
+Caddy validation has a 15-second deadline; route probing has a 60-second aggregate
+budget with at most four seconds per request. Native polling has a 10-second
+window, or 70 seconds for a Docker controller; a final bounded API read can extend
+that window. Service readiness is configurable from 1 to 300 seconds.
 
 Prepared/publishing/published/activation-pending operations are durable before
 their next effect. An interrupted operation blocks new writes. Recovery compensates
-only unfinished inputs/runtime while fingerprints match; verified/compensated
-operations are terminal, not generic undo. Full backups stay in private state.
+only unfinished inputs/runtime while fingerprints match. `operations rollback`
+reverses verified route/service operations with matching lineage, source and native
+state; it rechecks conflicts and never forces newer intent away. Full backups stay
+in private state.
 `operation.recovery_required` can report `changed: true`; inspect the diagnostic
 and ID rather than interpreting every nonzero exit as effect-free.
 
@@ -86,7 +93,8 @@ for these optional fields. All other unknown keys are rejected.
 Endpoints: HTTP(S) base URLs with optional prefix or `unix:///absolute/socket` on
 Unix. Userinfo, query, fragments, and control characters are rejected. Unix use
 on non-Unix platforms returns a capability error. HTTPS uses system trust through
-Rustls; no insecure/mTLS/custom-CA flags exist. Management API/version/controller
+Rustls; no insecure/mTLS/custom-CA flags exist for API trust. Frontend route TLS
+verification separately accepts an explicit CA reference. API/version/controller
 identity is not inferred from a URL or a server header.
 
 `auth_file` contains one complete Authorization value, such as `Bearer ...` or
@@ -163,7 +171,8 @@ An empty routes list requests no changes; no resources are implicitly removed.
 
 Each route requires `id`, `proxy`, `hostname`, `enabled`, `upstream: {url}`, and
 `tls: {mode}`. TLS modes are `http`, `internal`, `public`; these are declared intent,
-not configuration generated/applied in this build. Upstream is a single explicit
+not proof of issuance in a read-only profile preview. Managed routes configure
+and verify the declared native policy. Upstream is a single explicit
 HTTP(S) origin; credentials, path rewrites, queries, and fragments are rejected.
 Service endpoint references are later composition scope.
 
@@ -205,4 +214,8 @@ configuration/state/network initialization; completion emits shell code, not JSO
 CLI usage errors in JSON mode also use the envelope. `--yes` cannot override
 authority, ownership, drift or capability gates.
 
-Broader manifest/setup/native-service management contracts remain future milestones.
+Managed saved plans use `kind: steward.route-plan`, registered state ownership,
+and state/source/native/tool fingerprints. `apply --plan FILE --yes` revalidates
+every step and reports earlier successful operation IDs on a multi-proxy failure.
+Services, setup, targets, composition, and export use the dedicated contracts
+described in the management/agent guides.

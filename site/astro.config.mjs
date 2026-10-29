@@ -18,7 +18,7 @@ export default defineConfig({
         { label: 'Get started', slug: 'guides/quick-start' },
         { label: 'Shell completion', slug: 'guides/completion' },
         { label: 'Using Steward with agents', slug: 'guides/agents' },
-        { label: 'Management workflows (development)', slug: 'guides/management' },
+        { label: 'Management workflows', slug: 'guides/management' },
       ] },
       { label: 'Routes & proxies', items: [
         { label: 'Proxy connections', slug: 'guides/connections' },

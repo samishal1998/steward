@@ -26,7 +26,7 @@ jobs:
     if: github.event_name == 'push'
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -53,6 +53,8 @@ jobs:
       - run: cargo +1.98.0 fmt --check
       - run: cargo +1.98.0 test --locked -- --test-threads=1
       - run: cargo +1.98.0 clippy --locked --all-targets -- -D warnings
+      - name: Installer and archive contracts
+        run: sh -n install.sh && python3 -B -m unittest discover -s scripts -p 'test_*.py'
       - name: Install native musl compiler
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
@@ -67,17 +69,24 @@ jobs:
           fi
           cargo +1.98.0 build --locked --release --target "$TARGET"
       - name: Execute built target
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$(target/$TARGET/release/steward --version)" == "steward ${VERSION#v}" ]]
-          target/$TARGET/release/steward --config examples/read-only.yaml route list --json > /tmp/steward-smoke.json
-          python3 -c 'import json; r=json.load(open("/tmp/steward-smoke.json")); assert r["changed"] is False and len(r["data"]) == 4'
+        run: python3 -B scripts/smoke_release.py --binary "target/$TARGET/release/steward" --version "$VERSION"
       - name: Verify Linux target is statically linked
         if: runner.os == 'Linux'
         run: file "target/$TARGET/release/steward" | grep -E 'static(ally linked|-pie linked)'
       - name: Package native archive
         run: python3 -B scripts/package_release.py --version "$VERSION" --target "$TARGET"
+      - name: Exercise the extracted release bundle
+        run: python3 -B scripts/smoke_release.py --archive "release-dist/steward_${VERSION}_${TARGET}.tar.gz" --version "$VERSION"
+      - name: Fetch pinned native acceptance tools
+        run: python3 -B scripts/fetch_test_proxies.py --dir "$RUNNER_TEMP/steward-release-proxies"
+      - name: Verify real route and TLS behavior of the release executable
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          python3 -B scripts/live_route_smoke.py --binary "target/$TARGET/release/steward" --caddy "$RUNNER_TEMP/steward-release-proxies/caddy" --traefik "$RUNNER_TEMP/steward-release-proxies/traefik"
+          python3 -B scripts/live_tls_files.py --binary "target/$TARGET/release/steward" --caddy "$RUNNER_TEMP/steward-release-proxies/caddy"
+          python3 -B scripts/live_tls_native.py --binary "target/$TARGET/release/steward" --caddy "$RUNNER_TEMP/steward-release-proxies/caddy" --traefik "$RUNNER_TEMP/steward-release-proxies/traefik"
+          python3 -B scripts/live_tui.py --binary "target/$TARGET/release/steward"
       - uses: actions/upload-artifact@v7
         with:
           name: steward-${{ matrix.target }}
@@ -101,6 +110,13 @@ jobs:
           ref: ${{ inputs.release_tag || github.ref_name }}
       - name: Verify tag matches package
         run: python3 -c 'import os,tomllib; p=tomllib.load(open("Cargo.toml","rb")); assert os.environ["VERSION"] == "v"+p["package"]["version"], "tag/package version mismatch"'
+      - name: Require successful source acceptance for this exact commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git rev-parse HEAD)
+          successful=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow checks.yml --commit "$source_sha" --event push --status success --limit 20 --json conclusion --jq length)
+          [[ "$successful" -gt 0 ]] || { printf '%s\n' 'Wait for the source checks (including native service/composition acceptance) to pass before publishing this tag.' >&2; exit 1; }
       - name: Verify reused native build evidence
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -180,10 +196,9 @@ jobs:
         run: |
           set -euo pipefail
           destination=$(mktemp -d)
+          trap 'rm -rf "$destination"' EXIT
           sh install.sh --version "$VERSION" --dir "$destination"
-          [[ "$("$destination/steward" --version)" == "steward ${VERSION#v}" ]]
-          "$destination/steward" --config examples/read-only.yaml plan --file examples/routes-only.yaml --json > /tmp/steward-installed.json
-          python3 -c 'import json; r=json.load(open("/tmp/steward-installed.json")); assert r["changed"] is False and r["data"]["applicable"] is False'
+          python3 -B scripts/smoke_release.py --binary "$destination/steward" --version "$VERSION"
       - name: Finalize release channel
         shell: bash
         run: |

@@ -3,9 +3,9 @@ title: Management workflows
 description: Checked plans, TLS, native services, proxy lifecycle, remote targets, recovery, and AppTrail exports.
 ---
 
-These workflows are implemented on **`feature/complete-management`**, version
-**0.2.0-dev.1**. Build that branch to use them. The public installer remains pinned
-to the released alpha.2 until a new release is finalized.
+These workflows ship in **v0.2.0-alpha.1**. Follow [installation](../installation/),
+then check `steward --version`. Commands are available through the CLI, while
+`steward tui` provides an interactive view over the same application logic.
 
 ## Find and maintain connections
 

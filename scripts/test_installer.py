@@ -10,7 +10,7 @@ import unittest
 from prepare_installer import TARGETS, prepare
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-VERSION = "v0.1.0-alpha.2"
+VERSION = "v0.2.0-alpha.1"
 
 
 class InstallerTests(unittest.TestCase):

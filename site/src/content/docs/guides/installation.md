@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: Install Steward's direct-route alpha on Linux or macOS without building from source.
+description: Install Steward's management alpha on Linux or macOS with a checksum-verified shell installer.
 ---
 
-Steward **alpha.2** adds shell completions and direct, recoverable local HTTP route commands to native Caddy/Traefik inventory. Proxy installation, broader controller/TLS modes, native services, composition and TUI retain their roadmap gates.
+Steward **v0.2.0-alpha.1** includes HTTP/TLS route management, Caddyfile/controller workflows, checked plans, native services, recovery, shell completion, and an interactive TUI. See [management workflows](../management/) for each command's authority and deployment requirements.
 
 ## Linux and macOS
 
@@ -16,6 +16,7 @@ Then:
 ```sh
 ~/.local/bin/steward --version
 ~/.local/bin/steward --help
+~/.local/bin/steward tui
 ```
 
 Supported downloads:
@@ -27,7 +28,7 @@ Supported downloads:
 | macOS | Intel x86_64 | Native macOS executable |
 | macOS | Apple Silicon ARM64 | Native macOS executable |
 
-The installer defaults to GitHub's latest stable release, or an explicitly documented alpha when none exists. Pin **v0.1.0-alpha.2** below for the direct commands; newer prereleases do not silently become stable updates.
+The installer follows GitHub's latest stable release. While there is no stable release, it explicitly selects **v0.2.0-alpha.1**. Other prereleases do not silently become stable updates.
 
 It verifies the release installer’s checksum, then the binary archive’s pinned checksum and the executable’s product/version. Installation is staged and atomically placed in `~/.local/bin/steward`. It does not require sudo, change shell configuration, start services, or enable a proxy API.
 
@@ -37,7 +38,7 @@ The machine needs `curl`, `tar`, standard Unix tools, and either `sha256sum` or 
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.1.0-alpha.2 --dir "$HOME/bin"
+  sh -s -- --version v0.2.0-alpha.1 --dir "$HOME/bin"
 ```
 
 `STEWARD_VERSION` and `STEWARD_BIN_DIR` are also accepted. `BEDOUIN_BIN_DIR` is supported for compatibility with Bedouin-generated installers. Custom installation directories must be absolute and writable by your user.
@@ -59,14 +60,21 @@ Checksum checks provide download integrity under the GitHub/HTTPS trust boundary
 If Bedouin is already installed:
 
 ```sh
-bedouin-installer samishal1998/steward@v0.1.0-alpha.2
+bedouin-installer samishal1998/steward@v0.2.0-alpha.1
 ```
 
 Maintainers use the standalone Bedouin generator's `--generate` mode to resolve platform URLs/digests without a provisioning config. The shell installer itself does not require Bedouin.
 
 ## Manual downloads
 
-[GitHub Releases](https://github.com/samishal1998/steward/releases) includes one archive per target, SHA256 sidecars, a combined `SHA256SUMS`, and the release-pinned installer. Extract `steward`, verify the archive against its digest, and place the executable in your desired bin directory.
+[GitHub Releases](https://github.com/samishal1998/steward/releases) includes one archive per target, SHA256 sidecars, a combined `SHA256SUMS`, and the release-pinned installer. Each archive includes the CLI, README, agent guide, and examples/fixtures for offline use. Verify the archive against its digest before extracting it, then place `steward` in your desired bin directory.
+
+After extracting a complete bundle, try:
+
+```sh
+./steward --config examples/read-only.yaml routes list --json
+./steward --config examples/read-only.yaml plan --file examples/routes-only.yaml --json
+```
 
 Windows is a later target; this release does not advertise a Windows build.
 
