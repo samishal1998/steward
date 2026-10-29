@@ -2,8 +2,8 @@
 
 ## Release packaging update
 
-The user subsequently authorized publishing Steward `v0.2.0-alpha.1` and its
-Starlight site on `main`. That release packages the implementation below. The
+The user subsequently authorized publishing Steward's management alpha and its
+Starlight site on `main`, initially targeting `v0.2.0-alpha.1`. The
 release workflow requires successful source acceptance for the tagged commit,
 builds four native targets, verifies complete extracted bundles, exercises the
 real route/TLS/TUI paths, and generates the checksum-pinned installer through
@@ -21,12 +21,24 @@ advanced to `v0.2.0-alpha.3` with isolated OpenSSL/LibreSSL certificate configur
 and Intel macOS source acceptance. Both earlier tags remain immutable and neither
 published release assets.
 
+**Published and verified:** [v0.2.0-alpha.3](https://github.com/samishal1998/steward/releases/tag/v0.2.0-alpha.3)
+at `48e1117ab62d747b167f307a6f73fe65b6aeeba0` passed
+[source checks 40964837135](https://github.com/samishal1998/steward/actions/runs/40964837135)
+on Linux and both Intel/ARM64 macOS, then
+[release run 40966503725](https://github.com/samishal1998/steward/actions/runs/40966503725)
+passed all four native builds, extracted-bundle and real route/TLS/TUI checks,
+Bedouin installer generation and public installation. Steward `main` and
+[Pages 40969585343](https://github.com/samishal1998/steward/actions/runs/40969585343)
+were promoted afterward. Public default/pinned installation, downloaded artifacts,
+installed-binary native tests and live browser checks passed; detailed evidence is
+in [progress](PROGRESS.md). AppTrail's matching reader remains on its feature branch.
+
 Requested scope: the missing-feature list plus proxy update/remove, dynamic ID
 completion, history, rollback and explicit adoption. Nginx, Windows and custom
 Docker-label mappings remain deferred by the user's follow-up. Apache is excluded.
 
 Acceptance is working behavior with meaningful failure coverage, not command
-placeholders. Existing read-only profiles and alpha.2 state remain readable.
+placeholders. Existing read-only profiles and `v0.1.0-alpha.2` state remain readable.
 
 | Area | Acceptance requirement | Status |
 | --- | --- | --- |
@@ -52,9 +64,9 @@ execution evidence before support claims are promoted. Record results below.
 
 ## Branch-development evidence (2026-10-24)
 
-Development version: `0.2.0-dev.1`. The shipped installer remains on alpha.2.
-Both repositories use `feature/complete-management`; neither main branch has been
-changed by this work. The user explicitly authorized branch publication and CI.
+Development version was `0.2.0-dev.1`; the shipped installer then selected
+`v0.1.0-alpha.2`. Both repositories used `feature/complete-management`; neither
+main branch was changed during that task. The user authorized branch publication and CI.
 
 - Local Rust formatting, Clippy with warnings denied, tests and Rust 1.89 checks passed.
 - `scripts/live_route_smoke.py`: Caddy 2.11.7/Traefik 3.7.14 lifecycle, explicit
@@ -93,7 +105,7 @@ compensation. A subsequent run passed startup and exposed macOS 26's textual
 `enabled`/`disabled` output; the reader now supports both that representation and
 older boolean overrides. Temporary process-sampling workflows/examples were removed.
 
-## Final verification
+## Final branch-development verification
 
 - Steward code commit `c7c28051394834e1139b1785caf64de997349c34`:
   [checks 40126510311](https://github.com/samishal1998/steward/actions/runs/40126510311)

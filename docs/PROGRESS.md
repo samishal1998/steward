@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-29 — v0.2.0-alpha.3 candidate and cross-platform fixture verification prepared.** Workspace:
+**Updated: 2026-10-29 — v0.2.0-alpha.3 published; native artifacts, public installation and Pages verified.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -18,9 +18,36 @@ The Bedouin standalone generator stays pinned and checksum-verified at 0.23.1.
 Pages watches source-imported schemas as well as guides, examples and installer.
 
 Current documentation and agent references describe the same alpha. The documented
-fallback is `v0.2.0-alpha.3`; the release is published before `main`/Pages promotion
-so the public selector always has downloadable assets. Actual publication evidence
-is recorded after the workflow and public installation checks complete.
+fallback is `v0.2.0-alpha.3`. The release was published and its public installation
+verified before `main`/Pages promotion, so the selector had downloadable assets
+when the new documentation went live.
+
+- [Release v0.2.0-alpha.3](https://github.com/samishal1998/steward/releases/tag/v0.2.0-alpha.3)
+  is a public non-latest prerelease at `48e1117ab62d747b167f307a6f73fe65b6aeeba0`.
+  [Source checks 40964837135](https://github.com/samishal1998/steward/actions/runs/40964837135)
+  **passed** Linux x86_64 and both Intel/ARM64 macOS, including native services,
+  composition and verified TLS. Rust 1.89, documentation, 24 Rust tests and 12
+  installer/archive contracts passed; Linux also passed Docker/controller and SSH.
+- [Release run 40966503725](https://github.com/samishal1998/steward/actions/runs/40966503725)
+  **passed** all four native targets and publication. Each executable and extracted
+  bundle passed smoke checks; real route/TLS and PTY suites passed on every target.
+  The publish job verified the exact source CI, Bedouin generator, generated
+  installer and an installation from public assets.
+- All ten assets were downloaded: four native archives, four SHA256 sidecars,
+  `install.sh` and `SHA256SUMS`. `sha256sum --check --strict SHA256SUMS` and
+  `scripts/release_checksums.py --dir . --version v0.2.0-alpha.3 --verify SHA256SUMS`
+  **passed**. The downloaded Linux x86_64 bundle passed `scripts/smoke_release.py`.
+- Public Pages `curl … | sh` installations with Bash `pipefail` **passed** both
+  pinned `--version v0.2.0-alpha.3` and default selection in separate temporary
+  destinations. Both produced identical `steward 0.2.0-alpha.3` static-PIE binaries.
+  The installed executable passed release smoke, real Caddy 2.11.7/Traefik 3.7.14
+  route lifecycle/recovery, native HTTPS trust/lifecycle and TUI terminal restoration.
+- Steward `main` was advanced to the release commit after publication.
+  [Pages run 40969585343](https://github.com/samishal1998/steward/actions/runs/40969585343)
+  **passed**. Browser checks at [the public site](https://samishal1998.github.io/steward/)
+  passed 23 internal links, search, mobile layouts, light/dark Waymark branding,
+  and byte-exact installer, agent, schema, example and fixture downloads.
+  AppTrail's importer remains on `feature/complete-management` at `d85c8c6…`.
 
 The first tag attempt `v0.2.0-alpha.1` at `f4cbe56c…` passed source CI and three
 native release targets. Intel macOS built/executed its bundle and passed route/
@@ -34,22 +61,22 @@ remain required. Alpha.1 is retained as historical failed-tag evidence.
 The alpha.2 run [40953757975](https://github.com/samishal1998/steward/actions/runs/40953757975)
 also stopped before publication: Intel macOS generated its fixture certificates,
 but the supplied CA was rejected while constructing the verified client. The route
-operation was compensated. The next candidate is `v0.2.0-alpha.3`, following the
+operation was compensated. The next candidate was `v0.2.0-alpha.3`, following the
 user's fresh-tag choice. Certificate generation now uses isolated explicit CA/CSR
 configuration and SHA-256 rather than inheriting platform `openssl.cnf` defaults;
 the fixture checks chain validation and a single CA basic-constraints extension.
 Intel macOS is now in source acceptance, including full TLS/native service checks,
-before any further release tag is created.
+before further release tags are created. Both failed tags remain immutable.
 
 ### Management expansion — 2026-10-24
 
 The user requested all previously listed missing features and smaller CLI gaps,
 then explicitly deferred Nginx, Windows for Steward and custom label mappings.
 They authorized publication of feature branches in Steward and AppTrail to verify
-macOS behavior. Main branches and released installer versions remain separate.
+macOS behavior. At that stage, main branches and released installers were separate.
 
 Implementation and acceptance records are maintained in
-[FEATURE_COMPLETION.md](FEATURE_COMPLETION.md). Development version is
+[FEATURE_COMPLETION.md](FEATURE_COMPLETION.md). The development version was
 `0.2.0-dev.1`; source has a new management guide, agent instructions and versioned
 read-only export schema. AppTrail's branch adds the matching file provider and
 upgrade-safe provider-schema migration. Existing `steward-plan/` user work in the
@@ -59,8 +86,8 @@ Steward [checks 40126510311](https://github.com/samishal1998/steward/actions/run
 and AppTrail [checks 40124701437](https://github.com/samishal1998/apptrail/actions/runs/40124701437)
 passed. The feature coverage document records exact executed suites and qualified
 boundaries, including the resolved macOS reverse-DNS fixture, launchd enablement
-format and PTY-spawn issues. The work is published on review branches; release
-alpha.2 remains the installer target until a merge/release is requested.
+format and PTY-spawn issues. The work was published on review branches;
+`v0.1.0-alpha.2` remained the installer target until the later release above.
 
 ### Original handoff record
 
@@ -150,7 +177,7 @@ its own source commit and checks follow the already passing foundation run.
   Original undecided/template status is preserved intentionally; completed
   external docs are current.
 
-## Active and next work
+## Original distribution work — historical record
 
 ### Release packaging and public documentation
 
