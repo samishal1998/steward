@@ -10,7 +10,7 @@ The OS supervises applications; there is no required Steward daemon or AppTrail
 server/database. Route and service commands remain independently useful, while
 composition is explicit.
 
-## Implemented in v0.2.0-alpha.2
+## Implemented in v0.2.0-alpha.3
 
 - Caddy/Traefik native inventory, qualified file snapshots and discovery candidates.
 - Direct HTTP/TLS route lifecycle with explicit JSON/Caddyfile/controller/directory authority.

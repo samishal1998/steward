@@ -15,7 +15,7 @@ Or add `~/.local/bin` to your shell’s PATH. The installer does not edit shell 
 
 ## No stable release is available
 
-The management release is an alpha. The Pages installer explicitly falls back to **v0.2.0-alpha.2** when GitHub has no stable release. Pin it with `--version v0.2.0-alpha.2`, or use `bedouin-installer samishal1998/steward@v0.2.0-alpha.2`.
+The management release is an alpha. The Pages installer explicitly falls back to **v0.2.0-alpha.3** when GitHub has no stable release. Pin it with `--version v0.2.0-alpha.3`, or use `bedouin-installer samishal1998/steward@v0.2.0-alpha.3`.
 
 If a release is still being published and its installer is not available yet, installation fails before placement. Check that the [Release workflow](https://github.com/samishal1998/steward/actions/workflows/release.yml) has completed before retrying.
 

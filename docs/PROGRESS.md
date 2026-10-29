@@ -1,6 +1,6 @@
 # Steward progress
 
-**Updated: 2026-10-29 — v0.2.0-alpha.2 packaging and public documentation prepared.** Workspace:
+**Updated: 2026-10-29 — v0.2.0-alpha.3 candidate and cross-platform fixture verification prepared.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
@@ -18,7 +18,7 @@ The Bedouin standalone generator stays pinned and checksum-verified at 0.23.1.
 Pages watches source-imported schemas as well as guides, examples and installer.
 
 Current documentation and agent references describe the same alpha. The documented
-fallback is `v0.2.0-alpha.2`; the release is published before `main`/Pages promotion
+fallback is `v0.2.0-alpha.3`; the release is published before `main`/Pages promotion
 so the public selector always has downloadable assets. Actual publication evidence
 is recorded after the workflow and public installation checks complete.
 
@@ -30,6 +30,16 @@ failed before publication; no public assets were uploaded. The user chose a fres
 `v0.2.0-alpha.2` tag rather than moving alpha.1. The fixture now supplies explicit
 SAN/key-usage extensions through portable `-extfile`; trust/hostname assertions
 remain required. Alpha.1 is retained as historical failed-tag evidence.
+
+The alpha.2 run [40953757975](https://github.com/samishal1998/steward/actions/runs/40953757975)
+also stopped before publication: Intel macOS generated its fixture certificates,
+but the supplied CA was rejected while constructing the verified client. The route
+operation was compensated. The next candidate is `v0.2.0-alpha.3`, following the
+user's fresh-tag choice. Certificate generation now uses isolated explicit CA/CSR
+configuration and SHA-256 rather than inheriting platform `openssl.cnf` defaults;
+the fixture checks chain validation and a single CA basic-constraints extension.
+Intel macOS is now in source acceptance, including full TLS/native service checks,
+before any further release tag is created.
 
 ### Management expansion — 2026-10-24
 

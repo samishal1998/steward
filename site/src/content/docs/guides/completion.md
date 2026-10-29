@@ -51,7 +51,7 @@ eval (steward completions elvish | slurp)
 ```
 
 The installer does not edit shell startup files. Static completion covers command
-names and options. In v0.2.0-alpha.2, add `--dynamic` for saved proxy/route IDs:
+names and options. In v0.2.0-alpha.3, add `--dynamic` for saved proxy/route IDs:
 
 ```sh
 source <(steward completions bash --dynamic)

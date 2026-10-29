@@ -6,7 +6,7 @@ A standalone Rust CLI and TUI for proxy routes, native services, and checked,
 recoverable operations. The OS supervises applications; Steward has no required
 daemon or AppTrail dependency.
 
-**Current release: v0.2.0-alpha.2.** Includes Caddy/Traefik HTTP/TLS routes,
+**Current release: v0.2.0-alpha.3.** Includes Caddy/Traefik HTTP/TLS routes,
 Caddyfile/import and Docker-controller workflows, saved plan/apply, proxy lifecycle,
 systemd/launchd services, SSH/container targets, composition, operation history,
 rollback, explicit adoption, dynamic completion and redacted AppTrail exports.
@@ -27,14 +27,14 @@ curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
 ```
 
 The selector follows the latest stable release, or explicitly selects the documented
-alpha `v0.2.0-alpha.2` when no stable release exists. It verifies the release script,
+alpha `v0.2.0-alpha.3` when no stable release exists. It verifies the release script,
 archive digest and executable version, then places the CLI atomically in
 `~/.local/bin`. No sudo, shell edits, proxy setup or service startup is performed
 by the CLI installer. Pin a version or choose a directory with:
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.2.0-alpha.2 --dir "$HOME/bin"
+  sh -s -- --version v0.2.0-alpha.3 --dir "$HOME/bin"
 ```
 
 Release installers use Bedouin-resolved platform URLs and embedded checksums.

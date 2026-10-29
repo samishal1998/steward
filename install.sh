@@ -29,8 +29,8 @@ main() {
     case "$info" in
       "200|$repo/releases/tag/"*)
         version=${info##*/}
-        case "$version" in *-*) version=v0.2.0-alpha.2; printf '%s\n' 'No stable Steward release yet; installing the documented alpha v0.2.0-alpha.2.' >&2 ;; esac ;;
-      "200|$repo/releases"|"200|$repo/releases/"|"404|"*) version=v0.2.0-alpha.2; printf '%s\n' 'No stable Steward release yet; installing the documented alpha v0.2.0-alpha.2.' >&2 ;;
+        case "$version" in *-*) version=v0.2.0-alpha.3; printf '%s\n' 'No stable Steward release yet; installing the documented alpha v0.2.0-alpha.3.' >&2 ;; esac ;;
+      "200|$repo/releases"|"200|$repo/releases/"|"404|"*) version=v0.2.0-alpha.3; printf '%s\n' 'No stable Steward release yet; installing the documented alpha v0.2.0-alpha.3.' >&2 ;;
       *) printf '%s\n' 'Could not resolve a Steward release. Choose --version or check GitHub Releases.' >&2; exit 1 ;;
     esac
   fi

@@ -1,6 +1,6 @@
 # Steward
 
-> Steward v0.2.0-alpha.2 is a standalone Rust CLI/TUI for Caddy/Traefik routes, native services, checked plans and recoverable operations. Preserve native identities, explicit authority, ownership, partial coverage and recovery boundaries.
+> Steward v0.2.0-alpha.3 is a standalone Rust CLI/TUI for Caddy/Traefik routes, native services, checked plans and recoverable operations. Preserve native identities, explicit authority, ownership, partial coverage and recovery boundaries.
 
 ## Start here
 

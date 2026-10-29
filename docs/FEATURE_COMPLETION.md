@@ -12,9 +12,14 @@ publication. The records below preserve the earlier branch-development evidence.
 
 The alpha.1 release attempt stopped before publication on an Intel macOS fixture
 compatibility issue (`openssl x509 -copy_extensions`). The user selected a fresh
-**v0.2.0-alpha.2** release with portable certificate extension input; the original
+**v0.2.0-alpha.2** attempt with portable certificate extension input; the original
 tag remains immutable. See [progress](PROGRESS.md) for the recorded failed run and
 subsequent publication evidence.
+
+After alpha.2 exposed a further Intel-only CA-fixture rejection, the candidate
+advanced to `v0.2.0-alpha.3` with isolated OpenSSL/LibreSSL certificate configuration
+and Intel macOS source acceptance. Both earlier tags remain immutable and neither
+published release assets.
 
 Requested scope: the missing-feature list plus proxy update/remove, dynamic ID
 completion, history, rollback and explicit adoption. Nginx, Windows and custom

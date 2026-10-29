@@ -9,6 +9,29 @@ import tempfile
 import threading
 from live_route_smoke import Backend,port,request,wait
 
+def create_test_certificates(root):
+    ca=root/'ca.crt';key=root/'ca.key';leaf=root/'leaf.crt';leafkey=root/'leaf.key';csr=root/'leaf.csr'
+    # Keep fixture CA extensions explicit and independent of platform
+    # openssl.cnf defaults.
+    ca_config=root/'ca.cnf'
+    ca_config.write_text('[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ca\n[dn]\nCN=Steward Test CA\n[ca]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n')
+    leaf_config=root/'leaf.cnf'
+    leaf_config.write_text('[req]\nprompt=no\ndistinguished_name=dn\n[dn]\nCN=secure.localhost\n')
+    extensions=root/'leaf.ext'
+    extensions.write_text('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:secure.localhost\n')
+    commands=[
+        ['openssl','req','-x509','-newkey','rsa:2048','-sha256','-nodes','-keyout',str(key),'-out',str(ca),'-days','1','-config',str(ca_config)],
+        ['openssl','req','-newkey','rsa:2048','-sha256','-nodes','-keyout',str(leafkey),'-out',str(csr),'-config',str(leaf_config)],
+        ['openssl','x509','-req','-sha256','-in',str(csr),'-CA',str(ca),'-CAkey',str(key),'-CAcreateserial','-out',str(leaf),'-days','1','-extfile',str(extensions)],
+        ['openssl','verify','-CAfile',str(ca),str(leaf)],
+    ]
+    for command in commands:
+        result=subprocess.run(command,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=30)
+        assert result.returncode==0,(command,result.stderr.decode(errors='replace')[-2048:])
+    certificate=subprocess.check_output(['openssl','x509','-in',str(ca),'-noout','-text'],text=True,timeout=10)
+    assert certificate.count('X509v3 Basic Constraints:')==1,certificate
+    return ca,leaf,leafkey
+
 def exercise(binary,engine,native):
     with tempfile.TemporaryDirectory(prefix='steward-native-tls-',dir=os.environ.get('TMPDIR')) as folder:
         root=Path(folder)
@@ -23,14 +46,7 @@ def exercise(binary,engine,native):
             args=[str(native),'run','--config',str(source)]
             flags=['--listener','secure','--caddy-bin',str(native),'--ca-file',str(ca)]
         else:
-            ca=root/'ca.crt';key=root/'ca.key';leaf=root/'leaf.crt';leafkey=root/'leaf.key';csr=root/'leaf.csr'
-            extensions=root/'leaf.ext'
-            # -extfile is shared by LibreSSL and OpenSSL; -copy_extensions is not.
-            extensions.write_text('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:secure.localhost\n')
-            commands=[['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(ca),'-days','1','-subj','/CN=Steward Test CA','-addext','basicConstraints=critical,CA:TRUE'],['openssl','req','-newkey','rsa:2048','-nodes','-keyout',str(leafkey),'-out',str(csr),'-subj','/CN=secure.localhost'],['openssl','x509','-req','-in',str(csr),'-CA',str(ca),'-CAkey',str(key),'-CAcreateserial','-out',str(leaf),'-days','1','-extfile',str(extensions)]]
-            for command in commands:
-                result=subprocess.run(command,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=30)
-                assert result.returncode==0,(command,result.stderr.decode(errors='replace')[-2048:])
+            ca,leaf,leafkey=create_test_certificates(root)
             config={'entryPoints':{'secure':{'address':f'127.0.0.1:{tls_port}'},'traefik':{'address':f'127.0.0.1:{admin}'}},'api':{'insecure':True},'providers':{'file':{'directory':str(root/'dynamic'),'watch':True}}}
             args=[str(native),'--configFile='+str(source)]
             flags=['--listener','secure','--directory',str(root/'dynamic'),'--ca-file',str(ca),'--certificate',str(leaf),'--private-key',str(leafkey)]
@@ -61,6 +77,12 @@ def exercise(binary,engine,native):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    for name in ('binary','caddy','traefik'):parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--check-certificates',action='store_true')
+    for name in ('binary','caddy','traefik'):parser.add_argument('--'+name,type=Path)
     args=parser.parse_args()
-    exercise(args.binary.resolve(),'caddy',args.caddy.resolve());exercise(args.binary.resolve(),'traefik',args.traefik.resolve())
+    if args.check_certificates:
+        with tempfile.TemporaryDirectory(prefix='steward-certificates-') as folder:create_test_certificates(Path(folder))
+        print('Portable CA/leaf generation and chain verification passed.')
+    else:
+        if not all((args.binary,args.caddy,args.traefik)):parser.error('--binary, --caddy and --traefik are required for native acceptance')
+        exercise(args.binary.resolve(),'caddy',args.caddy.resolve());exercise(args.binary.resolve(),'traefik',args.traefik.resolve())
