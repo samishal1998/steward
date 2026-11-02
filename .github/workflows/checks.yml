@@ -59,11 +59,21 @@ jobs:
         run: |
           sudo loginctl enable-linger "$USER"
           sudo systemctl start "user@$(id -u).service"
+          if ! command -v tmux >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
+          fi
           printf 'XDG_RUNTIME_DIR=/run/user/%s\nDBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%s/bus\n' "$(id -u)" "$(id -u)" >> "$GITHUB_ENV"
       - name: Real native services and composition
         run: |
           python3 -B scripts/live_services.py --binary target/debug/steward
           python3 -B scripts/live_stack_setup.py --binary target/debug/steward
+      - name: Native workspace workflows in isolated tmux
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: python3 -B scripts/live_tui_native.py --binary target/debug/steward --caddy "$RUNNER_TEMP/steward-proxies/caddy"
       - name: Real local route lifecycle and recovery
         env:
           TMPDIR: ${{ runner.temp }}

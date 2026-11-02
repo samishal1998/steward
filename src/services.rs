@@ -177,6 +177,24 @@ fn load(root: &Path) -> Result<Registry> {
     Ok(registry)
 }
 
+/// Private interactive editing input; never added to public inventory/export output.
+pub(crate) fn edit_spec(root: &Path, id: &str) -> Result<Spec> {
+    let _store = Store::open(root.to_owned())?;
+    let registry = load(root)?;
+    let record = registry
+        .services
+        .iter()
+        .find(|r| r.spec.id == id)
+        .ok_or_else(|| {
+            error(
+                "service.missing",
+                "Service is not owned by this state directory",
+            )
+        })?;
+    verify_definition(record)?;
+    Ok(record.spec.clone())
+}
+
 pub fn spec(args: &ServiceArgs) -> Result<Spec> {
     let mut environment = BTreeMap::new();
     for item in &args.environment {

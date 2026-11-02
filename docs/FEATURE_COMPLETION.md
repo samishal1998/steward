@@ -1,5 +1,15 @@
 # Feature completion work
 
+## Workspace release — v0.2.0-alpha.4
+
+The user requested a full Lazygit/Lazytmux-style workspace and automatic router
+detection, then authorized pushing and releasing it. The six-panel UI, persistent
+focus/filter state, searchable workflows, native logs, file picker and automatic
+Caddy/Traefik discovery are implemented. Local Linux acceptance includes the actual
+screen PTY suite and isolated tmux with real Caddy/systemd route, service, plan/apply,
+rollback and composition workflows. See [progress](PROGRESS.md) for candidate and
+publication evidence. Earlier release records below are historical.
+
 ## Release packaging update
 
 The user subsequently authorized publishing Steward's management alpha and its

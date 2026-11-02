@@ -1,4 +1,5 @@
 //! Explicit bounded discovery. Candidates are evidence, never automatic write authority.
+mod automatic;
 use crate::{
     config,
     error::Result,
@@ -6,6 +7,7 @@ use crate::{
     model::{Binding, Engine},
     transport,
 };
+pub use automatic::scan as automatic;
 
 pub fn inspect_file(
     path: &Path,
@@ -134,6 +136,9 @@ use std::{
 };
 
 pub fn discover(docker: Option<&str>, probe: bool) -> Result<Value> {
+    if probe && docker.is_none() {
+        return automatic();
+    }
     let mut candidates = Vec::new();
     let mut diagnostics = Vec::new();
     let home = std::env::var_os("HOME").map(PathBuf::from);

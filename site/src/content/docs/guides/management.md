@@ -3,7 +3,7 @@ title: Management workflows
 description: Checked plans, TLS, native services, proxy lifecycle, remote targets, recovery, and AppTrail exports.
 ---
 
-These workflows ship in **v0.2.0-alpha.3**. Follow [installation](../installation/),
+These workflows ship in **v0.2.0-alpha.4**. Follow [installation](../installation/),
 then check `steward --version`. Commands are available through the CLI, while
 `steward tui` provides an interactive view over the same application logic.
 
@@ -200,9 +200,62 @@ steward tui
 
 Dynamic completion reads only saved local IDs and never contacts a proxy or creates
 state. Use `STEWARD_STATE_DIR` or include `--state-dir` in the command being completed.
-The TUI provides Routes, Proxies, Services and Operations views: Tab changes views,
-arrows select, Enter inspects, `r` refreshes, `:` runs a checked Steward command, and
-`q` exits. It calls the same core logic rather than a shell.
+### Terminal workspace
+
+The full workspace is included in **v0.2.0-alpha.4** and later. Alpha.3 has the
+earlier minimal terminal view. Run `steward tui` after updating, or use
+`cargo run --locked -- tui` from a source checkout.
+
+The workspace follows the Lazygit/Lazytmux layout: four stacked resource panels
+on the left, a focusable inspector on the right, and persistent activity below it.
+Selections and filters survive panel switches. The inspector has Overview, Logs,
+JSON and Result views, independent scrolling, and a zoom mode.
+
+Caddy/Traefik discovery starts automatically. Detected APIs provide read-only route
+observations immediately. Press Enter on a router to scope the Routes panel; `0`
+returns to all routers. Press `c` to save a detected connection using its prefilled
+engine and endpoint. Select native file authority in the form to enable checked
+route management. The header identifies the active state directory and router scope.
+
+The active resource view refreshes every three seconds, other loaded panels every
+15 seconds, discovery every 30 seconds, and followed native service logs every two
+seconds. Space pauses resource refresh; `f` pauses log following. A single worker
+serializes requests, with one user action queued ahead of background refreshes.
+
+| Key | Action |
+| --- | --- |
+| Tab / Shift-Tab / h / l, or 1–6 | Focus Routers, Routes, Services, Operations, Inspector or Activity |
+| Arrows / j / k | Select a resource |
+| Enter | Scope a router's routes, inspect a resource, or open the last activity result |
+| p / Ctrl-P | Search contextual actions and all management workflows |
+| a | Open actions for the selected resource |
+| n | Add a route, connection or service through a form |
+| c / d | Connect a proxy / discover local resources |
+| e | Edit a saved router connection, owned route or native service |
+| / | Filter the current list; Escape clears it |
+| Page Up / Page Down, Home / End | Navigate long lists and details |
+| i / r / R | Diagnostics / refresh current panel / refresh and rescan |
+| : | Run a local Steward command; Up/Down recalls recent commands |
+| [ / ] / v | Cycle inspector views / toggle JSON |
+| L / f / z | Follow selected service logs / pause following / zoom inspector |
+| P / A | Create a saved plan / apply a reviewed plan |
+| I / S | Install a router / set up an existing executable |
+| u / D | Bring a composition stack up / down |
+| Space / 0 | Pause resource refresh / clear router scope |
+| ? / Escape / q | Keyboard help / back / quit |
+
+Forms use Tab to move between fields, Left/Right to change choices, Ctrl-O to browse
+files/directories, and Ctrl-S to submit. The action palette includes installation,
+upgrades, native-file inspection, service discovery, explicit route adoption,
+saved plans, composition and export. Service editing retains private environment
+values and readiness settings. Destructive menu actions have a cancelable dialog;
+native ownership, source checks and operation recovery still run in the core.
+
+Unavailable connections remain visible with diagnostics; disabled routes remain
+available for enabling. The layout adapts down to 48×14, with all six panels visible
+at normal terminal sizes. Activity records results and queued/running work. An
+active write finishes before quitting. `:` parses Steward arguments without shell
+execution, and remains useful for unusual command combinations.
 
 ## AppTrail integration
 

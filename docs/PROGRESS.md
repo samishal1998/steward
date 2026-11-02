@@ -1,12 +1,77 @@
 # Steward progress
 
-**Updated: 2026-10-29 — v0.2.0-alpha.3 published; native artifacts, public installation and Pages verified.** Workspace:
+**Updated: 2026-11-02 — v0.2.0-alpha.4 workspace release candidate prepared for native verification and publication.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
+## Workspace release candidate — v0.2.0-alpha.4
+
+User feedback identified the published terminal UI as too basic or apparently
+broken. A PTY reproduction of the alpha.3 executable showed an empty Routes body
+and `observed \u{b7} 0`. The earlier smoke test covered tab navigation and a single
+command on empty state; it did not establish a usable populated interface.
+
+The first correction improved the resource browser. The user's next request was a
+full Lazygit/Lazytmux-style workspace and automatic router detection. The interaction
+patterns were checked against their `lazy-tmux` project (`crates/tui/src/app.rs` and
+`ui.rs`): persistent stacked panels, focus-driven shortcuts, a live inspector and
+modal workflows.
+
+The current source has six persistent panels: Routers, Routes, Services,
+Operations, Inspector and Activity. Selections/filters survive panel switches;
+router selection scopes routes. The inspector supports overview, followed native
+logs, JSON, command results, paging and zoom. The searchable action palette includes
+connection/route/service editing, router installation/setup/upgrade/removal,
+adoption, native-file/service inspection, saved-plan review/apply, composition and
+export. Forms include a file picker; service edits retain private environment and
+readiness settings. A single worker prioritizes one queued user action over bounded
+background refreshes. All mutations still use the checked CLI core.
+
+Discovery now runs on startup and periodically, and is shared by
+`proxies discover --probe`: known Caddyfile/JSON and Traefik YAML/JSON, native
+process config arguments, conventional local APIs and published local Docker admin
+ports. Custom admin ports are read from explicit configuration. Detected routes
+are immediately inspectable as observations, without saving a connection or
+granting ownership. Scans use short verified API budgets and bounded retained
+evidence. Saved unavailable connections and disabled receipts stay visible.
+
+Rendering remains cell-bounded, control-character sanitized, resize-aware, and
+terminal-restoring. `unicode-width`, already present transitively, is now direct.
+The application remains one Cargo package with no required daemon.
+
+Local Linux verification **passed**:
+
+- `scripts/live_tui.py --binary target/debug/steward`: real PTY screens with
+  disposable Caddy/Traefik-compatible APIs on custom ports, automatic discovery
+  before any saved connection exists, detected routes, six panels, retained
+  filters, connection forms, 30-row browsing, live inspection, zoom, searchable
+  workflows, file picking, saved-plan/apply, cancelable removal, failed-API
+  diagnostics, help, responsive quit and full termios restoration. Layouts at
+  120/80/48 columns and undersized-terminal behavior are covered. Assertions use
+  completed current screens, rather than stale byte matches.
+- `scripts/live_tui_native.py`: an isolated tmux 3.4 server, real Caddy 2.11.7,
+  real systemd user services, and verified HTTP traffic. Passed automatic
+  process/config discovery, a writable connection form, service start/logs/stop/
+  edit with private environment retention, scoped route add/disable/enable/remove,
+  operation rollback, an actual route-bearing saved-plan apply, and readiness-gated
+  stack up/down with removal of the stack-created service. Native definitions and
+  task-owned processes were removed. The source CI now includes this Linux gate;
+  the portable PTY gate continues on Linux and both macOS architectures.
+- 34 Rust tests, 12 installer/archive tests, Clippy with warnings denied,
+  formatting, Rust 1.89, and workflow lint.
+- Starlight build and local browser verification, including the updated management
+  guide at mobile widths and source-identical agent downloads.
+
+The user authorized pushing and releasing the workspace as `v0.2.0-alpha.4`.
+The candidate is verified on the feature branch before tagging: Linux and both
+macOS source gates, then all four native release targets. Public installer/Pages
+promotion follows successful asset publication. The currently public fallback is
+alpha.3 until that promotion; publication and native macOS evidence will be recorded
+after their actual runs.
+
 ## Completed handoff
 
-### Management release and Pages publication
+### Management alpha.3 release and Pages publication — 2026-10-29
 
 The user authorized publication of `v0.2.0-alpha.1` and Steward's current docs.
 The existing native release and Astro Starlight workflows are retained and updated:

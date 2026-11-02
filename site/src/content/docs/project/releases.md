@@ -12,9 +12,12 @@ cargo clippy --locked -j 1 --all-targets -- -D warnings
 python3 -B -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-Source checks include Linux/macOS native acceptance and a separate Rust 1.89
-minimum-version job. The live scripts use disposable proxies, uniquely named test
-services and explicit cleanup. See the source evidence record for executed cases.
+Source checks include Linux and both Intel/ARM64 macOS acceptance, plus a separate
+Rust 1.89 minimum-version job. The portable PTY suite exercises populated workspace
+screens and automatic Caddy/Traefik discovery. A Linux isolated-tmux gate drives
+real native service, route, rollback, plan/apply and composition workflows. The live
+scripts use disposable proxies, uniquely named test services and explicit cleanup.
+See the source evidence record for executed cases.
 
 ## Starlight and GitHub Pages
 
@@ -38,11 +41,11 @@ repository sources instead of maintained as separate copies.
 1. Update `Cargo.toml` and `Cargo.lock` to the release version.
 2. Align current docs, the documented installer fallback and installer fixtures.
 3. Wait for **Rust checks** to pass on that exact commit.
-4. Create a matching tag, such as `v0.2.0-alpha.3`.
+4. Create a matching tag, such as `v0.2.0-alpha.4`.
 
 ```sh
-git tag -a v0.2.0-alpha.3 -m "Steward v0.2.0-alpha.3"
-git push origin v0.2.0-alpha.3
+git tag -a v0.2.0-alpha.4 -m "Steward v0.2.0-alpha.4"
+git push origin v0.2.0-alpha.4
 ```
 
 The tag-triggered release workflow requires `v` plus the Cargo version. Publishing
@@ -72,7 +75,7 @@ The publish job downloads **Bedouin standalone installer 0.23.1**, verifies its
 upstream checksum/version, and runs:
 
 ```sh
-bedouin-installer samishal1998/steward@v0.2.0-alpha.3 --generate --bin steward
+bedouin-installer samishal1998/steward@v0.2.0-alpha.4 --generate --bin steward
 ```
 
 `scripts/prepare_installer.py` validates the exact four platform URLs and digests
@@ -104,7 +107,7 @@ If all four builds succeeded but publishing failed, reuse their original artifac
 
 ```sh
 gh workflow run release.yml --repo samishal1998/steward --ref main \
-  -f release_tag=v0.2.0-alpha.3 -f build_run_id=BUILD_RUN_ID
+  -f release_tag=v0.2.0-alpha.4 -f build_run_id=BUILD_RUN_ID
 ```
 
 Recovery verifies the tag commit, original workflow/run identity, four successful

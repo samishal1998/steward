@@ -1,7 +1,7 @@
-# Steward agent guide — v0.2.0-alpha.3
+# Steward agent guide — v0.2.0-alpha.4
 
 Check `steward --version` and `steward --help` before acting. This guide describes
-v0.2.0-alpha.3; earlier 0.1 alphas do not implement the full management workflows.
+v0.2.0-alpha.4; earlier 0.1 alphas do not implement the full management workflows.
 Use `--json` for machine-readable command results. Help, version, completion scripts
 and the interactive TUI have their own output forms.
 
@@ -9,7 +9,7 @@ and the interactive TUI have their own output forms.
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.2.0-alpha.3
+  sh -s -- --version v0.2.0-alpha.4
 steward proxies list --json
 steward routes list --json
 steward services list --json
@@ -134,6 +134,23 @@ and 256 MiB each; hitting a limit does not silently erase history.
 
 `completions bash|zsh|fish|elvish|powershell --dynamic` supplies local saved IDs without
 network access or state creation. `tui` calls the same checked core interactively.
+
+The alpha.4 TUI is a six-panel workspace: Routers, Routes, Services,
+Operations, Inspector and Activity. Caddy/Traefik detection runs automatically,
+using known local native configs/processes, conventional APIs and published local
+Docker admin ports. Detected routes are read-only observations until a connection
+and authority are explicitly saved. `proxies discover --probe` shares this scan.
+
+`1`–`6`/Tab move focus; Enter scopes a router or inspects a resource; `0` clears
+scope. `p` searches workflows, `c` connects, `n` adds, `e` edits, `a` opens contextual
+actions, `/` filters, and `i` shows diagnostics. `L` follows service logs, `z` zooms
+the inspector, Space pauses resource refresh, and `?` shows all shortcuts. Forms
+submit with Ctrl-S and browse files with Ctrl-O. Plan/apply, installation/setup,
+composition, native discovery and adoption have forms; `:` remains available for
+parsed CLI commands. The worker serializes native work and logs results. Existing
+private service environment values are retained during editing rather than exposed
+as inventory. Alpha.3 has the earlier minimal view; use alpha.4 or later for this
+workspace. Unavailable connections and disabled receipts stay visible.
 
 `export --out /absolute/shared/steward.json` emits the versioned redacted inventory.
 AppTrail's matching file provider is currently on its `feature/complete-management`

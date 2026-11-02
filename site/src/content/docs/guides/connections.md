@@ -12,7 +12,28 @@ steward proxies add edge --engine traefik --endpoint http://127.0.0.1:8080
 steward proxies list
 ```
 
-An API-only connection grants inventory access. Writable commands require separately declared native authority. Discovery never chooses or enables a proxy automatically.
+An API-only connection grants inventory access. Writable commands require separately declared native authority.
+
+### Automatic detection
+
+In alpha.4 and later, the TUI discovers Caddy/Traefik on startup and rescans periodically.
+`steward proxies discover --probe` runs the same scan from the CLI. It checks:
+
+- conventional loopback admin ports;
+- readable Caddyfile/JSON and Traefik YAML/JSON in system, Homebrew and XDG config locations;
+- recognized running processes and their explicit config/admin arguments;
+- local Docker containers and published `2019/tcp` or `8080/tcp` admin ports.
+
+Custom admin ports are inferred from native configuration. Probes use the bounded,
+verified API reader and local endpoints only, with a two-second candidate limit
+and ten-second scan budget. Failed configured candidates remain visible with their
+diagnostics. Only decoded native APIs supply live route observations.
+
+Detected instances appear in the Routers panel and can be inspected immediately.
+`c` opens a prefilled connection form. Saving that connection and declaring file
+authority establish the corresponding management actions. Detection itself grants
+no ownership, enables no APIs, and starts no services. Alpha.3 predates this
+automatic workspace discovery.
 
 ```yaml
 schema_version: "1"

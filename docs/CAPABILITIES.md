@@ -1,11 +1,13 @@
 # Steward capabilities and evidence
 
-## Current management release — v0.2.0-alpha.3
+## Current management release — v0.2.0-alpha.4
 
-Version `0.2.0-alpha.3` packages the previously verified management expansion, including
+Version `0.2.0-alpha.4` adds the six-panel workspace and automatic local router
+discovery to the previously verified management expansion, including
 checked apply, native TLS/file/controller modes, proxy/native-service lifecycle,
 targets, composition, history/rollback, adoption, dynamic completion, TUI and a
-versioned AppTrail reader/export pair. See [feature coverage and actual execution
+versioned AppTrail reader/export pair. Workspace-specific acceptance and publication
+are recorded in [progress](PROGRESS.md). See [feature coverage and actual execution
 evidence](FEATURE_COMPLETION.md). Linux/macOS native user-scope checks passed;
 public ACME/DNS and logout/reboot are not inferred from local lifecycle tests.
 Nginx, Windows for Steward, and custom label mappings remain deferred by the user.

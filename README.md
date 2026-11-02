@@ -6,7 +6,8 @@ A standalone Rust CLI and TUI for proxy routes, native services, and checked,
 recoverable operations. The OS supervises applications; Steward has no required
 daemon or AppTrail dependency.
 
-**Current release: v0.2.0-alpha.3.** Includes Caddy/Traefik HTTP/TLS routes,
+**Current release: v0.2.0-alpha.4.** Adds a six-panel terminal workspace and automatic
+Caddy/Traefik discovery. Includes Caddy/Traefik HTTP/TLS routes,
 Caddyfile/import and Docker-controller workflows, saved plan/apply, proxy lifecycle,
 systemd/launchd services, SSH/container targets, composition, operation history,
 rollback, explicit adoption, dynamic completion and redacted AppTrail exports.
@@ -27,18 +28,39 @@ curl -fsSL https://samishal1998.github.io/steward/install.sh | sh
 ```
 
 The selector follows the latest stable release, or explicitly selects the documented
-alpha `v0.2.0-alpha.3` when no stable release exists. It verifies the release script,
+alpha `v0.2.0-alpha.4` when no stable release exists. It verifies the release script,
 archive digest and executable version, then places the CLI atomically in
 `~/.local/bin`. No sudo, shell edits, proxy setup or service startup is performed
 by the CLI installer. Pin a version or choose a directory with:
 
 ```sh
 curl -fsSL https://samishal1998.github.io/steward/install.sh |
-  sh -s -- --version v0.2.0-alpha.3 --dir "$HOME/bin"
+  sh -s -- --version v0.2.0-alpha.4 --dir "$HOME/bin"
 ```
 
 Release installers use Bedouin-resolved platform URLs and embedded checksums.
 Bedouin, Python, Node and Rust are not runtime dependencies of the shell installer.
+
+## Terminal workspace
+
+Steward has a Lazygit/Lazytmux-style workspace: stacked **Routers,
+Routes, Services and Operations** panels, a live **Inspector**, and persistent
+**Activity**. Each panel keeps its selection and filter. Native logs can be
+followed in the inspector while resources refresh in the background.
+
+```sh
+steward tui
+```
+
+Caddy/Traefik routers are detected automatically from local native configs,
+running processes, conventional APIs and published local Docker admin ports.
+Reachable detected routes can be browsed immediately; `c` saves a connection.
+`p` opens searchable actions, `1`–`6`/Tab change panel, Enter drills into a router
+or inspects a resource, and `?` shows all shortcuts. Forms cover connections,
+route/service editing, installation/setup, plan/apply, composition and export.
+Ctrl-O opens the file picker. Actions use the same checked core as the CLI.
+
+The workspace is included in alpha.4 and later; alpha.3 has the earlier minimal TUI.
 
 ## Start with direct commands
 

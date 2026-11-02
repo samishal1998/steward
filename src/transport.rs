@@ -70,6 +70,15 @@ pub struct Responses {
 }
 
 pub fn fetch(binding: &Binding) -> Result<Responses> {
+    fetch_with_budget(binding, Duration::from_secs(30))
+}
+
+/// Discovery uses the same bounded, verified reader with a short per-candidate budget.
+pub fn probe(binding: &Binding, budget: Duration) -> Result<Responses> {
+    fetch_with_budget(binding, budget)
+}
+
+fn fetch_with_budget(binding: &Binding, budget: Duration) -> Result<Responses> {
     let paths: &[&str] = match binding.engine {
         Engine::Caddy => &["/config/"],
         Engine::Traefik => &[
@@ -121,7 +130,7 @@ pub fn fetch(binding: &Binding) -> Result<Responses> {
         });
     }
     let (client, base, authorization) = live_client(binding)?;
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + budget;
     let mut values = BTreeMap::new();
     let mut sources = Vec::new();
     for path in paths {
