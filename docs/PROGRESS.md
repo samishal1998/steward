@@ -1,10 +1,10 @@
 # Steward progress
 
-**Updated: 2026-11-02 — v0.2.0-alpha.4 workspace release candidate prepared for native verification and publication.** Workspace:
+**Updated: 2026-11-02 — v0.2.0-alpha.4 published; native packages, public workspace installation and Pages verified.** Workspace:
 `/home/samimishal/projects/rust/steward`; public repository:
 https://github.com/samishal1998/steward.
 
-## Workspace release candidate — v0.2.0-alpha.4
+## Workspace release — v0.2.0-alpha.4
 
 User feedback identified the published terminal UI as too basic or apparently
 broken. A PTY reproduction of the alpha.3 executable showed an empty Routes body
@@ -63,11 +63,37 @@ Local Linux verification **passed**:
   guide at mobile widths and source-identical agent downloads.
 
 The user authorized pushing and releasing the workspace as `v0.2.0-alpha.4`.
-The candidate is verified on the feature branch before tagging: Linux and both
-macOS source gates, then all four native release targets. Public installer/Pages
-promotion follows successful asset publication. The currently public fallback is
-alpha.3 until that promotion; publication and native macOS evidence will be recorded
-after their actual runs.
+
+- [Source checks 41480617637](https://github.com/samishal1998/steward/actions/runs/41480617637)
+  **passed** at `b82fea4d9e01d9741d81a750b89c239db5025ba6`: Linux x86_64 and both
+  Intel/ARM64 macOS, including the expanded populated-workspace PTY suite, native
+  services/composition, route/TLS checks, docs and Rust 1.89. Linux also passed the
+  isolated-tmux native workspace gate, Docker/controller and SSH acceptance.
+- [Release v0.2.0-alpha.4](https://github.com/samishal1998/steward/releases/tag/v0.2.0-alpha.4)
+  is a public non-latest prerelease at that commit. Annotated tag object:
+  `efd15b280bdf7d573705406d5082e4eddc3b9e0f`.
+  [Release run 41482155145](https://github.com/samishal1998/steward/actions/runs/41482155145)
+  **passed** Linux x86_64/ARM64 musl and Intel/ARM64 macOS build, extracted-bundle,
+  real route/TLS and workspace PTY checks, followed by Bedouin installer generation
+  and installation from the public assets.
+- All ten public assets were downloaded. `sha256sum --check --strict SHA256SUMS`,
+  `release_checksums.py --dir . --version v0.2.0-alpha.4 --verify SHA256SUMS`, and
+  the extracted Linux x86_64 archive smoke test **passed**.
+- Fresh public Pages installations with Bash `pipefail`, both pinned and default,
+  produced identical `steward 0.2.0-alpha.4` static-PIE executables. That downloaded
+  executable passed release smoke, the populated-workspace PTY suite, the real
+  Caddy/systemd/tmux workspace suite (including route-bearing plan/apply and stack
+  up/down), and Caddy 2.11.7/Traefik 3.7.14 native HTTPS trust/lifecycle checks.
+- Steward `main` was promoted only after successful release publication and public
+  installation verification. [Pages run 41486248850](https://github.com/samishal1998/steward/actions/runs/41486248850)
+  **passed**. Live browser checks passed 23 internal links, search, Waymark branding,
+  light/dark and mobile layouts, and source-identical installer/agent/schema/example
+  downloads. The public default installer now selects alpha.4.
+
+The new PTY workspace is verified on all four release targets. Native tmux/service
+GUI workflows have direct Linux evidence; the source CLI native-service suites also
+passed both macOS architectures. Deployment-specific public ACME/DNS and reboot/
+logout boundaries remain as previously qualified.
 
 ## Completed handoff
 

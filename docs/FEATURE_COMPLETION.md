@@ -7,8 +7,18 @@ detection, then authorized pushing and releasing it. The six-panel UI, persisten
 focus/filter state, searchable workflows, native logs, file picker and automatic
 Caddy/Traefik discovery are implemented. Local Linux acceptance includes the actual
 screen PTY suite and isolated tmux with real Caddy/systemd route, service, plan/apply,
-rollback and composition workflows. See [progress](PROGRESS.md) for candidate and
-publication evidence. Earlier release records below are historical.
+rollback and composition workflows.
+
+**Published and verified:** [v0.2.0-alpha.4](https://github.com/samishal1998/steward/releases/tag/v0.2.0-alpha.4)
+at `b82fea4d9e01d9741d81a750b89c239db5025ba6` passed
+[source acceptance 41480617637](https://github.com/samishal1998/steward/actions/runs/41480617637)
+on Linux and both macOS architectures, and
+[release verification 41482155145](https://github.com/samishal1998/steward/actions/runs/41482155145)
+on all four native targets. Public installation, downloaded-binary workspace/native
+tests and live Pages checks passed after promotion.
+[Pages 41486248850](https://github.com/samishal1998/steward/actions/runs/41486248850)
+deployed the updated default installer and guides. See [progress](PROGRESS.md) for
+the full execution record. Earlier release records below are historical.
 
 ## Release packaging update
 
